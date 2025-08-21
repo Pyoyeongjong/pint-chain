@@ -1,0 +1,10 @@
+[package]
+name = "payload"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+primitives.workspace = true
+provider.workspace = true
+transaction_pool.workspace = true

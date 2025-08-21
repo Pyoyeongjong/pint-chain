@@ -1,0 +1,17 @@
+use std::{collections::HashMap, sync::Arc};
+
+use primitives::types::{Account, Address};
+
+use crate::world::World;
+
+pub struct State {
+    accounts: Arc<HashMap<Address, Account>>,
+    field: Arc<World>,
+}
+
+pub struct ExecutableState {
+    accounts_base: Arc<HashMap<Address, Account>>,
+    accounts_write: HashMap<Address, Account>,
+    field_base: Arc<World>,
+    field_writes: World,
+}
