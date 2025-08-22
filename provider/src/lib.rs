@@ -1,14 +1,19 @@
 pub mod state;
 pub mod world;
 
-use std::sync::Arc;
 pub use database::traits::Database;
 
 use crate::state::State;
 
-
+#[derive(Debug, Clone)]
 pub struct ProviderFactory<DB: Database> {
-    db: Arc<DB>
+    db: DB
+}
+
+impl<DB: Database> ProviderFactory<DB> {
+    pub fn new(db: DB) -> Self {
+        Self { db }
+    }
 }
 
 pub struct Provider {

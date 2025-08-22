@@ -1,6 +1,97 @@
-use std::net::Ipv4Addr;
+use std::{net::SocketAddr, sync::Arc};
 
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mpsc::{self, UnboundedSender}, Mutex, RwLock}};
+
+use crate::{NetworkHandle, NetworkHandleMessage};
+
+#[derive(Debug)]
 pub struct Peer {
-    ip_addr: Ipv4Addr,
-    port: u16,
+    addr: SocketAddr,
+    tx: UnboundedSender<NetworkHandleMessage>,
 }
+
+impl Peer {
+    pub fn new(addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
+        Self { addr, tx }
+    }
+}
+
+
+#[derive(Debug)]
+pub struct PeerList {
+    peers: Arc<RwLock<Vec<Peer>>>,
+}
+
+impl PeerList {
+    pub fn new() -> Self {
+        Self {
+            peers: Arc::new(RwLock::new(Vec::new()))
+        }
+    }
+
+    pub async fn len(&self) -> usize {
+        self.peers.read().await.len()
+    }
+}
+
+impl PeerList {
+    pub async fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) {
+        let (tx, mut rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
+        // tx is used for every componets who want to send peer msg
+        // rx isolates socket
+        let new_peer = Peer::new(addr.clone(), tx);
+        let mut peers = self.peers.write().await;
+        peers.push(new_peer);
+
+        let (mut read_socket, mut write_socket) = socket.into_split();
+
+        // incoming loop
+        let incoming = async move {
+            println!("Peer {:?} incoming task has spawned.", addr);
+            let mut buf = [0u8; 1024];
+            loop {
+                match read_socket.read(&mut buf).await {
+                    Ok(0) => {
+                        println!("Peer {:?} closed connection", addr);
+                        break;
+                    }
+                    Ok(n) => {
+                        if let Some(decoded) = NetworkHandleMessage::decode(&buf[..n]) {
+                            let _ = network_handle.send(decoded);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("read error from {:?}: {:?}", addr, e);
+                        break;
+                    }
+                }
+            }
+        };
+
+        // outgoing loop
+        let outgoing = async move {
+            println!("Peer {:?} outgoing task has spawned.", addr);
+            while let Some(msg) = rx.recv().await {
+                if let Err(e) = write_socket.write_all(&msg.encode()).await {
+                    eprintln!("Failed to send to {:?}: {:?}", addr, e);
+                    break;
+                }
+            }
+        };
+
+        let peers_ref = self.peers.clone();
+        
+        tokio::spawn(async move{
+            select! {
+            _ = incoming => {},
+            _ = outgoing => {}
+        }
+
+            println!("Peer {:?} disconnected.", addr);
+            let mut peers = peers_ref.write().await;
+            peers.retain(|peer| peer.addr != addr);
+        });
+    }
+}
+
+

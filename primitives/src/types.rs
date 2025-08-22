@@ -6,8 +6,11 @@ pub type TxHash = B256;
 pub type BlockHash = B256;
 
 const ADDR_LEN: usize = 20;
+
+#[derive(Debug)]
 pub struct Address([u8; ADDR_LEN]);
 
+#[derive(Debug)]
 pub struct Account {
     pub nonce: u64,
     pub balance: U256,

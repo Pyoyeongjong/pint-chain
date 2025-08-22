@@ -1,1 +1,3 @@
-pub enum BlockImportError {}
+pub enum BlockImportError {
+    NoopImporter,
+}

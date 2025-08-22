@@ -28,7 +28,7 @@ pub struct Payload {
 
 
 /// Block Importer trait
-pub trait BlockImportable {
+pub trait BlockImportable: Send + Sync {
     type B;
     fn import_block(&self, block: Self::B) -> Result<(), BlockImportError>;
 }

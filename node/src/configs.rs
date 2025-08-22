@@ -1,12 +1,10 @@
 use std::net::Ipv4Addr;
 
+#[derive(Default)]
 pub struct PoolConfig {}
-pub struct NetworkConfig {
-    ip_addr: Ipv4Addr,
-    port: u16,
-    rpc_port: u16,
-    max_peer_size: u16,
-}
+#[derive(Default)]
 pub struct RpcConfig {}
+#[derive(Default)]
 pub struct BlockConfig {}
+#[derive(Default)]
 pub struct ExecConfig {}

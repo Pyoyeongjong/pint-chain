@@ -4,6 +4,7 @@ use primitives::types::{Account, Address};
 
 use crate::world::World;
 
+#[derive(Debug)]
 pub struct State {
     accounts: Arc<HashMap<Address, Account>>,
     field: Arc<World>,

@@ -10,4 +10,5 @@ transaction_pool.workspace = true
 payload.workspace = true
 consensus.workspace = true
 network.workspace = true
+database.workspace = true
 
