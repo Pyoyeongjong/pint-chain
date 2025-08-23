@@ -3,6 +3,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use clap::Parser;
 use network::builder::NetworkConfig;
 use node::builder::LaunchContext;
+use tokio::signal;
 
 
 #[derive(Parser)]
@@ -11,10 +12,10 @@ struct Args {
     #[arg(short, long, default_value_t = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))]
     address: IpAddr,
 
-    #[arg(short, long, default_value_t = 9557)]
+    #[arg(short, long, default_value_t = 30303)]
     port: u16,
 
-    #[arg(short, long, default_value_t = 9558)]
+    #[arg(short, long, default_value_t = 8545)]
     rpc_port: u16,
 }
 
@@ -29,7 +30,7 @@ async fn main() {
     
     let args = Args::parse();
     let network_config = NetworkConfig::new(args.address, args.port, args.rpc_port);
-    let launch_context = LaunchContext::new(network_config);
+    let launch_context = LaunchContext::new(network_config.clone());
 
     let node = match launch_context.launch().await {
         Ok(node ) => node,
@@ -40,7 +41,16 @@ async fn main() {
     };
 
     // dbg!(node);
+    println!("PintChain Node Launcing Ok.");
 
     // Starts RPC Server
+    // Graceful shutdown
+
+    tokio::select! {
+        _ = node.run_rpc(network_config) => {},
+        _ = signal::ctrl_c() => {
+            println!("Ctrl_C: Gracefully shutdown Node..")
+        }
+    }
 
 }

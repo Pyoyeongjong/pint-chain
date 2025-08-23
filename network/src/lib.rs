@@ -26,7 +26,6 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
     fn start_loop(self) {
         tokio::spawn(async move {
             let mut this = self;
-            println!("Network loop starts.");
             loop {
                 tokio::select! {
                     // New Peer
@@ -42,9 +41,11 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
 
                     // NetworkHandle Message
                     Some(msg) = this.from_handle_rx.next() => {
+                        println!("Network received message: {:?}", msg);
                         match msg {
-                            NetworkHandleMessage::ExternalTransaction => {
-
+                            NetworkHandleMessage::PeerConnectionTest{peer: addr} => {
+                                let peer = this.peers.find_peer(addr).await.unwrap();
+                                peer.send(NetworkHandleMessage::PeerConnectionTest { peer: addr });
                             }
                         }
                     }
@@ -92,7 +93,9 @@ impl NetworkHandle {
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
-        todo!()
+        if let Err(e) = self.inner.to_manager_tx.send(msg) {
+            eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
+        }
     }
 }
 
@@ -112,15 +115,21 @@ impl BlockImportable for NoopImporter {
 
 #[derive(Debug)]
 pub enum NetworkHandleMessage {
-    ExternalTransaction,
+    PeerConnectionTest{
+        peer: SocketAddr
+    },
 }
 
 impl NetworkHandleMessage {
     pub fn encode(&self) -> Vec<u8> {
-        todo!()
+        match self {
+            Self::PeerConnectionTest { peer: _ } => {
+                b"Peer Connection Test.\n".to_vec()
+            }
+        }
     }
 
     pub fn decode(buf: &[u8]) -> Option<NetworkHandleMessage>{
-        todo!()
+        None
     }
 }

@@ -11,4 +11,8 @@ payload.workspace = true
 consensus.workspace = true
 network.workspace = true
 database.workspace = true
-
+tokio.workspace = true
+tokio-stream.workspace = true
+serde_json = { version = "1.0.140" }
+serde = { version = "1.0.128", features = ["derive"] }
+axum = "0.8.4"

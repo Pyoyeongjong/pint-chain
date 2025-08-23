@@ -1,5 +1,6 @@
 use std::sync::{atomic::AtomicU64, Arc};
 
+use primitives::block::Payload;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 #[derive(Debug)]
@@ -26,7 +27,12 @@ impl Miner {
             let Miner { mut miner_rx, consensus_tx, epoch, worker } = self;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
-                    // TODO:
+                    println!("Miner received message: {:?}", msg);
+                    match msg {
+                        MinerHandleMessage::NewPayload(paylod) => {
+
+                        }
+                    }
                 }
             }
         });
@@ -64,6 +70,9 @@ pub struct MinerInner {
 }
 
 
-pub enum MinerHandleMessage {}
+#[derive(Debug)]
+pub enum MinerHandleMessage {
+    NewPayload(Payload),
+}
 
 pub enum MinerResultMessage {}

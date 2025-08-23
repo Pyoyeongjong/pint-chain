@@ -20,7 +20,7 @@ pub struct Block {
     pub body: Vec<SignedTransaction>,
 }
 
-
+#[derive(Debug)]
 /// Payload Structure (Before Mining)
 pub struct Payload {
     pub body: Vec<SignedTransaction>,

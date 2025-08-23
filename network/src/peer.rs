@@ -4,7 +4,7 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mp
 
 use crate::{NetworkHandle, NetworkHandleMessage};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Peer {
     addr: SocketAddr,
     tx: UnboundedSender<NetworkHandleMessage>,
@@ -13,6 +13,12 @@ pub struct Peer {
 impl Peer {
     pub fn new(addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
         Self { addr, tx }
+    }
+
+    pub fn send(&self, msg: NetworkHandleMessage) {
+        if let Err(e) = self.tx.send(msg) {
+            eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
+        }
     }
 }
 
@@ -31,6 +37,16 @@ impl PeerList {
 
     pub async fn len(&self) -> usize {
         self.peers.read().await.len()
+    }
+
+    pub async fn find_peer(&self, addr: SocketAddr) -> Option<Peer> {
+        let peers = self.peers.read().await;
+        for peer in peers.iter() {
+            if peer.addr == addr {
+                return Some(peer.clone());
+            }
+        }
+        None
     }
 }
 
@@ -58,6 +74,8 @@ impl PeerList {
                     Ok(n) => {
                         if let Some(decoded) = NetworkHandleMessage::decode(&buf[..n]) {
                             let _ = network_handle.send(decoded);
+                        } else {
+                            let _ = network_handle.send(NetworkHandleMessage::PeerConnectionTest{peer: addr});
                         }
                     }
                     Err(e) => {

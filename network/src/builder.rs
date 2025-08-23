@@ -75,6 +75,6 @@ impl BootNode {
 
 impl Default for BootNode {
     fn default() -> Self {
-        Self { address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 4321 }
+        Self { address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 30303 }
     }
 }
