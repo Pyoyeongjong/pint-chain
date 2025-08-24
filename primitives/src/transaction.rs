@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use k256::ecdsa::RecoveryId;
 use k256::ecdsa::VerifyingKey;
 use k256::EncodedPoint;
@@ -6,6 +8,14 @@ use sha2::Digest;
 use crate::error::DecodeError;
 use crate::error::RecoveryError;
 use crate::{signature::Signature, types::{Address, ChainId, TxHash, U256, B256}};
+
+pub trait Tx {
+    fn chain_id(&self) -> ChainId;
+    fn nonce(&self) -> u64;
+    fn to(&self) -> Address;
+    fn fee(&self) -> u128;
+    fn value(&self) -> U256;
+}
 
 /// Raw Transaction
 #[derive(Debug, Clone)]
@@ -67,6 +77,28 @@ impl Transaction {
     }
 }
 
+impl Tx for Transaction {
+    fn chain_id(&self) -> ChainId {
+        self.chain_id
+    }
+
+    fn nonce(&self) -> u64 {
+        self.nonce
+    }
+
+    fn to(&self) -> Address {
+        self.to
+    }
+
+    fn fee(&self) -> u128 {
+        self.fee
+    }
+
+    fn value(&self) -> U256 {
+        self.value
+    }
+}
+
 /// Transaction with Signature
 #[derive(Debug, Clone)]
 pub struct SignedTransaction {
@@ -80,6 +112,7 @@ impl SignedTransaction {
     pub fn transaction(&self) -> &Transaction {
         &self.tx
     }
+
     pub fn new(tx: Transaction, signature: Signature, hash: TxHash) -> Self{
         Self { tx, signature, hash }
     }
@@ -131,6 +164,79 @@ impl SignedTransaction {
             .expect("slice is not 20 bytes");
 
         Ok(Address::from_byte(recovered_address))
+    }
+
+    pub fn into_recovered(self) -> Result<Recovered, RecoveryError> {
+        let signer = self.recover_signer()?;
+        Ok(Recovered {
+            tx: self, signer
+
+        })
+    }
+}
+
+impl Tx for SignedTransaction {
+    fn chain_id(&self) -> ChainId {
+        self.transaction().chain_id()
+    }
+
+    fn nonce(&self) -> u64 {
+        self.transaction().nonce()
+    }
+
+    fn to(&self) -> Address {
+        self.transaction().to()
+    }
+
+    fn fee(&self) -> u128 {
+        self.transaction().fee()
+    }
+
+    fn value(&self) -> U256 {
+        self.transaction().value()
+    }
+}
+
+#[derive(Debug, Clone)]
+// SignedTransaction -> Recovered
+pub struct Recovered {
+    tx: SignedTransaction,
+    signer: Address,
+}
+
+impl Recovered {
+    pub fn tx(&self) -> &SignedTransaction {
+        &self.tx
+    }
+
+    pub fn signer(&self) -> Address {
+        self.signer
+    }
+
+    pub fn hash(&self) -> TxHash {
+        self.tx().hash
+    }
+}
+
+impl Tx for Recovered {
+    fn chain_id(&self) -> ChainId {
+        self.tx().chain_id()
+    }
+
+    fn nonce(&self) -> u64 {
+        self.tx().nonce()
+    }
+
+    fn to(&self) -> Address {
+        self.tx().to()
+    }
+
+    fn fee(&self) -> u128 {
+        self.tx().fee()
+    }
+
+    fn value(&self) -> U256 {
+        self.tx().value()
     }
 }
 

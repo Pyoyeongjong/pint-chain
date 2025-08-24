@@ -7,7 +7,10 @@ license.workspace = true
 [dependencies]
 primitives.workspace = true
 provider.workspace = true
+database.workspace = true
 k256 = { version = "0.13.4", features = ["ecdsa", "sha256"]}
 rand = "0.9.1"
 sha2 = "0.10.9"
 hex = "0.4.3"
+tokio.workspace = true
+parking_lot.workspace = true

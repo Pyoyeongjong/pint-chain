@@ -1,6 +1,6 @@
-use std::time::Instant;
+use std::{time::Instant};
 
-use primitives::transaction::{SignedTransaction, Transaction};
+use primitives::transaction::{Recovered, Tx};
 
 use crate::{identifier::{TransactionId, TransactionOrigin}, validator::validtx::ValidPoolTransaction};
 
@@ -9,10 +9,10 @@ pub struct MockValidator;
 
 impl MockValidator {
 
-    pub fn validate(&mut self, tx: SignedTransaction) -> ValidPoolTransaction {
+    pub fn validate(&mut self, tx: Recovered) -> ValidPoolTransaction {
         let tid = TransactionId {
-            sender: tx.recover_signer().unwrap(),
-            nonce: tx.transaction().nonce,
+            sender: tx.signer(),
+            nonce: tx.nonce()
         };
         ValidPoolTransaction {
             transaction: tx,

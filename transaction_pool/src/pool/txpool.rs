@@ -1,6 +1,6 @@
 use std::{collections::{btree_map::Entry, BTreeMap, HashMap}, sync::Arc};
 
-use primitives::types::{TxHash, U256};
+use primitives::{transaction::Tx, types::{TxHash, U256}};
 
 use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier::{SenderId, SenderInfo, TransactionId}, pool::{self, parked::ParkedPool, pending::PendingPool, state::{SubPool, TxState}}, validator::validtx::ValidPoolTransaction};
 
@@ -284,7 +284,8 @@ mod tests {
         let mut pool = TxPool::new();
 
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -295,7 +296,8 @@ mod tests {
         assert_eq!(1, pool.all_transaction.len());
 
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "apple", "banana");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -306,7 +308,8 @@ mod tests {
         assert_eq!(2, pool.all_transaction.len());
 
         let signed_tx = create_new_signed_tx(0, 2, U256::from(1), "apple", "banana");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -325,7 +328,8 @@ mod tests {
 
         // 1st parked tx
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(1);
         let on_chain_nonce = 0;
 
@@ -336,7 +340,8 @@ mod tests {
 
         // 2nd parked tx
         let signed_tx = create_new_signed_tx(1, 1, U256::from(1), "pint", "chain");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -352,8 +357,8 @@ mod tests {
         let mut factory = MockValidator::default();
         let mut pool = TxPool::new();
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -377,7 +382,8 @@ mod tests {
 
         // old tx
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(4);
         let on_chain_nonce = 0;
 
@@ -388,7 +394,8 @@ mod tests {
 
         // new tx
         let signed_tx = create_new_signed_tx(0, 2, U256::from(1), "pint", "chain");
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(4);
         let on_chain_nonce = 0;
 
@@ -405,8 +412,8 @@ mod tests {
         let mut factory = MockValidator::default();
         let mut pool = TxPool::new();
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 1;
 
@@ -420,8 +427,8 @@ mod tests {
         let mut factory = MockValidator::default();
         let mut pool = TxPool::new();
         let signed_tx = create_new_signed_tx(0, 0, U256::from(1), "pint", "chain");
-
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 
@@ -433,8 +440,8 @@ mod tests {
         let mut factory = MockValidator::default();
         let mut pool = TxPool::new();
         let signed_tx = create_new_signed_tx(0, 1, U256::from(1), "pint", "chain");
-
-        let vtx = factory.validate(signed_tx);
+        let recovered_signed_tx = signed_tx.into_recovered().unwrap();
+        let vtx = factory.validate(recovered_signed_tx);
         let on_chain_balance = U256::from(2);
         let on_chain_nonce = 0;
 

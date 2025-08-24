@@ -20,3 +20,4 @@ node = { path = "node" }
 
 tokio = { version = "1.0.7", features = ["full"] }
 tokio-stream = "0.1.17"
+parking_lot = { version =  "0.12.4" }

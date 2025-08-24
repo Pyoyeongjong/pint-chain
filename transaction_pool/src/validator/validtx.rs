@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
-use primitives::{transaction::SignedTransaction, types::{TxHash, U256}};
+use primitives::{transaction::{Recovered, SignedTransaction, Tx}, types::{TxHash, U256}};
 
 use crate::identifier::{SenderId, TransactionId, TransactionOrigin};
 
 #[derive(Debug, Clone)]
 pub struct ValidPoolTransaction {
-    pub transaction: SignedTransaction,
+    pub transaction: Recovered,
     pub transaction_id: TransactionId,
     pub origin: TransactionOrigin,
     pub timestamp: std::time::Instant,
@@ -14,7 +12,7 @@ pub struct ValidPoolTransaction {
 
 impl ValidPoolTransaction {
 
-    pub fn tx(&self) -> &SignedTransaction {
+    pub fn tx(&self) -> &Recovered {
         &self.transaction
     }
 
@@ -27,22 +25,33 @@ impl ValidPoolTransaction {
     }
 
     pub fn hash(&self) -> TxHash {
-        self.tx().hash
+        self.tx().tx().hash
     }
 
-    pub fn nonce(&self) -> u64 {
-        self.tx().transaction().nonce
-    }
-
-    pub fn fee(&self) -> u128 {
-        self.tx().transaction().fee
-    }
-
-    pub fn value(&self) -> U256 {
-        self.tx().transaction().value
-    }
 
     pub fn is_underpriced(&self, other: &Self) -> bool {
         self.fee() < other.fee()
+    }
+}
+
+impl Tx for ValidPoolTransaction {
+    fn chain_id(&self) -> primitives::types::ChainId {
+        self.tx().chain_id()
+    }
+
+    fn nonce(&self) -> u64 {
+        self.tx().nonce()
+    }
+
+    fn to(&self) -> primitives::types::Address {
+        self.tx().to()
+    }
+
+    fn fee(&self) -> u128 {
+        self.tx().fee()
+    }
+
+    fn value(&self) -> U256 {
+        self.tx().value()
     }
 }

@@ -1,4 +1,4 @@
-use primitives::{transaction::SignedTransaction};
+use primitives::transaction::{Tx};
 
 use crate::validator::validtx::ValidPoolTransaction;
 

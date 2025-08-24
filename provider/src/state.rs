@@ -1,8 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
-use primitives::types::{Account, Address};
+use primitives::{types::{Account, Address}, world::World};
 
-use crate::world::World;
 
 #[derive(Debug)]
 pub struct State {

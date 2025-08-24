@@ -35,3 +35,9 @@ pub enum InsertErr {
         transaction: Arc<ValidPoolTransaction>,
     },
 }
+
+#[derive(Debug)]
+pub enum InvalidPoolTransactionError {
+    NotEnoughFeeError,
+    NonceIsNotConsistent,
+}

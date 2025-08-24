@@ -44,13 +44,17 @@ impl Address {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Account {
     pub nonce: u64,
     pub balance: U256,
 }
 
 impl Account {
+
+    pub fn new(nonce: u64, balance: U256) -> Self {
+        Self { nonce, balance }
+    }
     pub fn update(&mut self, nonce: u64, balance: U256) {
         self.nonce = nonce;
         self.balance = balance;
