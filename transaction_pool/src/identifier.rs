@@ -1,13 +1,18 @@
-use primitives::types::Address;
+use std::collections::HashMap;
 
-#[derive(Debug)]
+use primitives::types::{Account, Address};
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct TransactionId {
-    sender: Address,
-    nonce: u64,
+    pub sender: SenderId,
+    pub nonce: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TransactionOrigin {
     Local,
     External,
 }
+
+pub type SenderInfo = Account;
+pub type SenderId = Address;

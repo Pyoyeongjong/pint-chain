@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 alloy-primitives = { version = "1.2.0", features = ["rand"] }
+k256 = { version = "0.13.4", features = ["ecdsa", "sha256"]}
+rand = "0.9.1"
+sha2 = "0.10.9"
+hex = "0.4.3"

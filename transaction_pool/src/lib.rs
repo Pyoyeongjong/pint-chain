@@ -8,17 +8,24 @@ pub mod pool;
 pub mod validator;
 pub mod identifier;
 pub mod ordering;
+pub mod mock;
+pub mod error;
 
 #[derive(Debug, Clone)]
 pub struct Pool<DB: Database> {
-    inner: Arc<PoolInner<DB>>,
+    pool: Arc<PoolInner<DB>>,
 }
 
 impl<DB: Database> Pool<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
-            inner: Arc::new(PoolInner::new(provider)),
+            pool: Arc::new(PoolInner::new(provider)),
         }
     }
+
+    pub fn inner(&self) -> &PoolInner<DB> {
+        &self.pool
+    }
 }
+
 
