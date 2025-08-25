@@ -63,6 +63,7 @@ impl NetworkConfig {
 
 #[derive(Clone, Debug)]
 pub struct BootNode {
+    is_boot_node: bool,
     address: IpAddr,
     port: u16,
 }
@@ -71,10 +72,14 @@ impl BootNode {
     pub fn socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.address, self.port)
     }
+
+    pub fn is_boot_node(&self) -> bool {
+        self.is_boot_node
+    }
 }
 
 impl Default for BootNode {
     fn default() -> Self {
-        Self { address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 30303 }
+        Self { is_boot_node: true, address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 30303 }
     }
 }

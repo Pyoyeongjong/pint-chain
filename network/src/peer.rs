@@ -1,6 +1,7 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::{Arc}};
 
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mpsc::{self, UnboundedSender}, Mutex, RwLock}};
+use parking_lot::RwLock;
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mpsc::{self, UnboundedSender}}};
 
 use crate::{NetworkHandle, NetworkHandleMessage};
 
@@ -35,12 +36,16 @@ impl PeerList {
         }
     }
 
-    pub async fn len(&self) -> usize {
-        self.peers.read().await.len()
+    pub fn inner(&self) -> &RwLock<Vec<Peer>> {
+        &self.peers
     }
 
-    pub async fn find_peer(&self, addr: SocketAddr) -> Option<Peer> {
-        let peers = self.peers.read().await;
+    pub fn len(&self) -> usize {
+        self.peers.read().len()
+    }
+
+    pub fn find_peer(&self, addr: SocketAddr) -> Option<Peer> {
+        let peers = self.peers.read();
         for peer in peers.iter() {
             if peer.addr == addr {
                 return Some(peer.clone());
@@ -51,12 +56,12 @@ impl PeerList {
 }
 
 impl PeerList {
-    pub async fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) {
+    pub fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) {
         let (tx, mut rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
         // tx is used for every componets who want to send peer msg
         // rx isolates socket
         let new_peer = Peer::new(addr.clone(), tx);
-        let mut peers = self.peers.write().await;
+        let mut peers = self.peers.write();
         peers.push(new_peer);
 
         let (mut read_socket, mut write_socket) = socket.into_split();
@@ -72,10 +77,10 @@ impl PeerList {
                         break;
                     }
                     Ok(n) => {
-                        if let Some(decoded) = NetworkHandleMessage::decode(&buf[..n]) {
+                        if let Some(decoded) = NetworkHandleMessage::decode(&buf[..n], addr) {
                             let _ = network_handle.send(decoded);
                         } else {
-                            let _ = network_handle.send(NetworkHandleMessage::PeerConnectionTest{peer: addr});
+                            eprintln!("Invalid Request from Peer: {:?}", addr);
                         }
                     }
                     Err(e) => {
@@ -106,7 +111,7 @@ impl PeerList {
         }
 
             println!("Peer {:?} disconnected.", addr);
-            let mut peers = peers_ref.write().await;
+            let mut peers = peers_ref.write();
             peers.retain(|peer| peer.addr != addr);
         });
     }

@@ -1,12 +1,6 @@
 pub mod state;
-pub mod error;
-
-use std::ops::Deref;
-
 pub use database::traits::Database;
 use primitives::{block, types::{Account, Address}};
-
-use crate::{error::ProviderError, state::State};
 
 #[derive(Debug, Clone)]
 pub struct ProviderFactory<DB: Database> {
@@ -18,12 +12,12 @@ impl<DB: Database + Clone> ProviderFactory<DB> {
         Self { db }
     }
 
-    pub fn latest(&self) -> Result<Provider<DB>, ProviderError> {
+    pub fn latest(&self) -> Result<Provider<DB>, Box<dyn std::error::Error>> {
         let block_no = self.db.block_number();
         self.state_by_block_number(block_no)
     }
 
-    fn state_by_block_number(&self, block_no: u64) -> Result<Provider<DB>, ProviderError> {
+    fn state_by_block_number(&self, block_no: u64) -> Result<Provider<DB>, Box<dyn std::error::Error>> {
         Ok(Provider{
             db: self.db.clone(),
             block_no: block_no
@@ -37,7 +31,7 @@ pub struct Provider<DB: Database> {
 }
 
 impl<DB: Database> Provider<DB> {
-    pub fn basic_account(&self, address: Address) -> Result<Option<Account>, ProviderError>  {
+    pub fn basic_account(&self, address: Address) -> Result<Option<Account>, Box<dyn std::error::Error>>  {
         Ok(self.db.basic(&address)?)
     }
 }

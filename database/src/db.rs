@@ -1,8 +1,9 @@
-use std::{collections::{BTreeMap, HashMap}, hash::Hash, ops::Add, os::unix::fs::FileExt, sync::{Arc, RwLock}};
+use std::{collections::{BTreeMap, HashMap}, sync::{Arc}};
 
+use parking_lot::RwLock;
 use primitives::{types::{Account, Address}, world::World};
 
-use crate::{error::DatabaseError, traits::Database};
+use crate::{traits::Database};
 
 #[derive(Debug)]
 pub struct InMemoryDB {
@@ -27,11 +28,8 @@ impl InMemoryDB {
         }
     }
 
-    pub fn add_account(&mut self, address: Address, accout: Account) -> Result<(), DatabaseError> {
-        let mut state = match self.accounts.write() {
-            Ok(state) => state,
-            Err(e) => return Err(DatabaseError::StateRWLockError)
-        };
+    pub fn add_account(&mut self, address: Address, accout: Account) -> Result<(), Box<dyn std::error::Error>> {
+        let mut state = self.accounts.write();
 
         let latest_accounts = state.entry(self.latest).or_default();
         latest_accounts.insert(address, accout);
@@ -45,11 +43,8 @@ impl Database for Arc<InMemoryDB> {
         (**self).latest
     }
     
-    fn basic(&self, address: &Address) -> Result<Option<Account>, DatabaseError> {
-        let mut state = match self.accounts.write() {
-            Ok(state) => state,
-            Err(e) => return Err(DatabaseError::StateRWLockError)
-        };
+    fn basic(&self, address: &Address) -> Result<Option<Account>, Box<dyn std::error::Error>> {
+        let mut state = self.accounts.write();
 
         let latest_accounts = state.entry(self.latest).or_default();
         Ok(latest_accounts.get(address).or(None).cloned())

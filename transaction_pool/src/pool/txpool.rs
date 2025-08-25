@@ -32,7 +32,7 @@ impl TxPool {
         transaction: ValidPoolTransaction,
         on_chain_balance: U256,
         on_chain_nonce: u64,
-    ) -> PoolResult<()> {
+    ) -> PoolResult<TxHash> {
         // check whether new transaction is already inserted or not
         if self.contains(&transaction.hash()) {
             return Err(PoolError::new(
@@ -46,6 +46,8 @@ impl TxPool {
             .entry(transaction.sender())
             .or_default()
             .update(on_chain_nonce, on_chain_balance);
+
+        let tx_hash = transaction.hash();
 
         match self.all_transaction.insert_transaction(transaction, on_chain_balance, on_chain_nonce) {
             Ok(InsertOk {
@@ -66,7 +68,7 @@ impl TxPool {
                 )),
             },
         }
-        Ok(())
+        Ok(tx_hash)
     }
 
     fn add_new_transaction(

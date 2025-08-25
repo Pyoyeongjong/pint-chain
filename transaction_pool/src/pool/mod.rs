@@ -1,3 +1,4 @@
+use parking_lot::RwLock;
 use provider::{Database, ProviderFactory};
 
 use crate::{pool::txpool::TxPool, validator::Validator};
@@ -10,15 +11,23 @@ pub mod state;
 #[derive(Debug)]
 pub struct PoolInner<DB: Database> {
     validator: Validator<DB>,
-    transaction_pool: TxPool,
+    transaction_pool: RwLock<TxPool>,
 }
 
 impl<DB: Database> PoolInner<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
             validator: Validator::new(provider),
-            transaction_pool: TxPool::new(),
+            transaction_pool: RwLock::new(TxPool::new()),
         }
+    }
+
+    pub fn validator(&self) -> &Validator<DB> {
+        &self.validator
+    }
+
+    pub fn pool(&self) -> &RwLock<TxPool> {
+        &self.transaction_pool
     }
 }
 

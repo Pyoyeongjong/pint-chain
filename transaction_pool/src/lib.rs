@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use primitives::{transaction::Recovered, types::TxHash};
 use provider::{Database, ProviderFactory};
 
-use crate::pool::PoolInner;
+use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::PoolInner, validator::TransactionValidationOutcome};
 
 pub mod pool;
 pub mod validator;
@@ -23,8 +24,35 @@ impl<DB: Database> Pool<DB> {
         }
     }
 
-    pub fn inner(&self) -> &PoolInner<DB> {
-        &self.pool
+
+    pub fn add_transaction(&mut self, origin: TransactionOrigin, transaction: Recovered) -> PoolResult<TxHash>{
+        let (_hash, outcome) = self.validate(origin, transaction);
+        match outcome {
+            TransactionValidationOutcome::Valid { transaction, balance, nonce } => {
+                self.pool.pool().write().add_transaction(transaction, balance, nonce)
+            }
+            TransactionValidationOutcome::Invalid{ transaction, error} => {
+                let pool_error = PoolError {
+                    hash: transaction.hash(),
+                    kind: PoolErrorKind::InvalidPoolTransactionError(error),
+                };
+                return Err(pool_error);
+            }
+            TransactionValidationOutcome::UnexpectedError(tx_hash) => {
+                let pool_error = PoolError {
+                    hash: tx_hash,
+                    kind: crate::error::PoolErrorKind::ImportError,
+                };
+                return Err(pool_error);
+            }
+        }
+    }
+
+    pub fn validate(&self, origin: TransactionOrigin, transaction: Recovered) -> (TxHash, TransactionValidationOutcome) {
+        let hash = transaction.hash();
+        let outcome = self.pool.validator().validate_transaction(origin, transaction);
+
+        (hash, outcome)
     }
 }
 

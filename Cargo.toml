@@ -2,6 +2,7 @@
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+resolver = "3"
 
 [workspace]
 members = [ "consensus", "database", "executor", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]

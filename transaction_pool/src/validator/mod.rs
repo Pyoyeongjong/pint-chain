@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use primitives::{transaction::{self, Recovered, Tx}, types::{TxHash, U256}};
-use provider::{error::ProviderError, state::State, Database, Provider, ProviderFactory};
+use provider::{state::State, Database, Provider, ProviderFactory};
 
-use crate::{error::InvalidPoolTransactionError, identifier::TransactionOrigin};
+use crate::{error::InvalidPoolTransactionError, identifier::{TransactionId, TransactionOrigin}, validator::validtx::ValidPoolTransaction};
 
 pub mod validtx;
 
@@ -13,7 +13,7 @@ pub struct Validator<DB: Database> {
 }
 
 impl<DB: Database> Validator<DB> {
-    pub fn validate_one(&self, origin: TransactionOrigin, transaction: Recovered) -> TransactionValidationOutcome {
+    pub fn validate_transaction(&self, origin: TransactionOrigin, transaction: Recovered) -> TransactionValidationOutcome {
         self.inner.validate_one(origin, transaction, None)
     }
 }
@@ -52,7 +52,7 @@ impl<DB: Database> ValidatorInner<DB> {
                             maybe_state = Some(new_state);
                         }
                         Err(e) => {
-                            return TransactionValidationOutcome::ProviderError(transaction.hash(), e);
+                            return TransactionValidationOutcome::UnexpectedError(transaction.hash());
                         }
                     }
                 }
@@ -77,12 +77,12 @@ impl<DB: Database> ValidatorInner<DB> {
         Ok(transaction)
     }
 
-    fn validate_one_against_state(&self, _origin: TransactionOrigin, transaction: Recovered, state: Provider<DB>)
+    fn validate_one_against_state(&self, origin: TransactionOrigin, transaction: Recovered, state: Provider<DB>)
     -> TransactionValidationOutcome {
         let account = match state.basic_account(transaction.signer()) {
             Ok(account) => account.unwrap_or_default(),
             Err(err) => {
-                return TransactionValidationOutcome::ProviderError(transaction.hash(), err);
+                return TransactionValidationOutcome::UnexpectedError(transaction.hash());
             }
         };
 
@@ -94,8 +94,18 @@ impl<DB: Database> ValidatorInner<DB> {
             }
         }
 
+        let valid_pool_transaction = ValidPoolTransaction {
+            transaction: transaction.clone(),
+            transaction_id: TransactionId {
+                sender: transaction.signer(),
+                nonce: transaction.nonce(),
+            },
+            origin,
+            timestamp: std::time::Instant::now(),
+        };
+
         TransactionValidationOutcome::Valid {
-            transaction,
+            transaction: valid_pool_transaction,
             balance: account.balance,
             nonce: account.nonce,
         }
@@ -105,7 +115,7 @@ impl<DB: Database> ValidatorInner<DB> {
 #[derive(Debug)]
 pub enum TransactionValidationOutcome {
     Valid {
-        transaction: Recovered,
+        transaction: ValidPoolTransaction,
         balance: U256,
         nonce: u64
     },
@@ -113,7 +123,7 @@ pub enum TransactionValidationOutcome {
         transaction: Recovered,
         error: InvalidPoolTransactionError,
     },
-    ProviderError(TxHash, ProviderError)
+    UnexpectedError(TxHash),
 }
 
 impl TransactionValidationOutcome {
@@ -165,7 +175,7 @@ mod tests {
         let validator = Validator::new(provider);
 
         let outcome: TransactionValidationOutcome =
-            validator.validate_one(TransactionOrigin::External, recovered.clone());
+            validator.validate_transaction(TransactionOrigin::External, recovered.clone());
 
         assert!(outcome.is_valid());
         dbg!(outcome);
@@ -185,7 +195,7 @@ mod tests {
         let validator = Validator::new(provider);
 
         let outcome: TransactionValidationOutcome =
-            validator.validate_one(TransactionOrigin::External, recovered.clone());
+            validator.validate_transaction(TransactionOrigin::External, recovered.clone());
 
         assert!(outcome.is_valid());
         dbg!(outcome);
@@ -204,7 +214,7 @@ mod tests {
         let validator = Validator::new(provider);
 
         let outcome: TransactionValidationOutcome =
-            validator.validate_one(TransactionOrigin::External, recovered.clone());
+            validator.validate_transaction(TransactionOrigin::External, recovered.clone());
 
         assert!(!outcome.is_valid());
         dbg!(outcome);
@@ -223,7 +233,7 @@ mod tests {
         let validator = Validator::new(provider);
 
         let outcome: TransactionValidationOutcome =
-            validator.validate_one(TransactionOrigin::External, recovered.clone());
+            validator.validate_transaction(TransactionOrigin::External, recovered.clone());
 
         assert!(!outcome.is_valid());
         dbg!(outcome);

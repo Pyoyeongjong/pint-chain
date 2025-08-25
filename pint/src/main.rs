@@ -17,6 +17,9 @@ struct Args {
 
     #[arg(short, long, default_value_t = 8545)]
     rpc_port: u16,
+
+    #[arg(short, long, default_value_t = true)]
+    boot_node: bool,
 }
 
 #[tokio::main]
