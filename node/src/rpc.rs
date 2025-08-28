@@ -1,8 +1,7 @@
-use axum::Json;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RpcRequest{
     pub jsonrpc: String,
     pub method: String,
@@ -23,20 +22,8 @@ impl RpcRequest {
 
 #[derive(Debug, Serialize)]
 pub struct RpcResponse {
-    pub jsonrpc: &'static str,
+    pub jsonrpc: String,
+    pub success: bool,
     pub result: Value,
     pub id: u64,
-}
-
-pub async fn rpc_handle(Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
-    let mut result = json!("method not found");
-
-    match req.method.as_str() {
-        "chain_name" => {
-            result = json!("Pint");
-        }
-        _ => {}
-    }
-
-    Json(RpcResponse { jsonrpc: "2.0", result, id: req.id })
 }

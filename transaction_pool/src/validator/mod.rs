@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use primitives::{transaction::{self, Recovered, Tx}, types::{TxHash, U256}};
+use primitives::{transaction::{Recovered, Tx}, types::{TxHash, U256}};
 use provider::{state::State, Database, Provider, ProviderFactory};
 
 use crate::{error::InvalidPoolTransactionError, identifier::{TransactionId, TransactionOrigin}, validator::validtx::ValidPoolTransaction};
@@ -47,14 +47,7 @@ impl<DB: Database> ValidatorInner<DB> {
         match self.validate_one_no_state(transaction) {
             Ok(transaction) => {
                 if maybe_state.is_none() {
-                    match self.provider.latest() {
-                        Ok(new_state) => {
-                            maybe_state = Some(new_state);
-                        }
-                        Err(e) => {
-                            return TransactionValidationOutcome::UnexpectedError(transaction.hash());
-                        }
-                    }
+                    maybe_state = Some(self.provider.latest());
                 }
 
                 let state = maybe_state.unwrap();

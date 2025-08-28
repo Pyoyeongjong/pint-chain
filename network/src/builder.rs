@@ -1,11 +1,12 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+use primitives::handle::NetworkHandleMessage;
 use provider::Database;
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use transaction_pool::Pool;
 
-use crate::{error::NetworkStartError, peer::PeerList, NetworkHandle, NetworkHandleMessage, NetworkManager, NoopImporter};
+use crate::{error::NetworkStartError, peer::PeerList, NetworkHandle, NetworkManager, NoopConsensusHandle};
 
 pub struct NetworkBuilder;
 
@@ -22,11 +23,11 @@ impl NetworkBuilder {
 
         let network_manager = NetworkManager {
             listener,
-            handle: network_handle.clone(),
+            networ_handle: network_handle.clone(),
             from_handle_rx: rx_stream,
             pool,
             peers: PeerList::new(),
-            consensus: Box::new(NoopImporter),
+            consensus: Box::new(NoopConsensusHandle),
             config: cfg.clone(),
         };
 

@@ -1,30 +1,32 @@
-use std::{net::SocketAddr, sync::Arc, vec};
+use std::{net::SocketAddr};
 
-use primitives::{block::{Block, BlockImportable}, error::BlockImportError, transaction::SignedTransaction};
+use primitives::{block::{Block, BlockImportable, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}};
 use provider::Database;
-use tokio::{net::{TcpListener, TcpStream}, sync::mpsc::UnboundedSender};
+use tokio::{net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use transaction_pool::{identifier::TransactionOrigin, Pool};
 
-use crate::{builder::{BootNode, NetworkConfig}, peer::PeerList};
+use crate::{builder::{BootNode, NetworkConfig}, handle::NetworkHandle, peer::PeerList};
 
 pub mod peer;
 pub mod builder;
 pub mod error;
+pub mod handle;
 
 pub struct NetworkManager<DB: Database> {
     listener: TcpListener,
-    handle: NetworkHandle,
+    networ_handle: NetworkHandle,
     from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
     pool: Pool<DB>,
     peers: PeerList,
-    consensus: Box<dyn BlockImportable<B = Block>>,
+    consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
     config: NetworkConfig,
 }
 
 impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
     fn start_loop(self) {
         tokio::spawn(async move {
+            println!("Network channel starts.");
             let mut this = self;
             loop {
                 tokio::select! {
@@ -35,7 +37,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                             println!("Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
                         } else {
                             println!("New peer: {}", addr);
-                            this.peers.insert_new_peer(socket, addr, this.handle.clone());
+                            this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
                         }
                     }
 
@@ -79,6 +81,10 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                                     }
                                 }
                             }
+                            NetworkHandleMessage::NewPayload(block) => {
+                                this.consensus.send(ConsensusHandleMessage::ImportBlock(block));
+
+                            }
                         }
                     }
                 }
@@ -95,7 +101,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
         match TcpStream::connect(addr).await {
             Ok(socket) => {
                 println!("Connected to boot node: {}", addr);
-                self.peers.insert_new_peer(socket, addr, self.handle.clone());
+                self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
             }
             Err(e) => {
                 eprintln!("Failed to connect to the boot node {}: {:?}", addr, e);
@@ -108,7 +114,7 @@ impl<DB: Database + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NetworkManager")
             .field("listener", &self.listener)
-            .field("handle", &self.handle)
+            .field("handle", &self.networ_handle)
             .field("from_handle_rx", &self.from_handle_rx)
             .field("pool", &self.pool)
             .field("peers", &self.peers)
@@ -116,108 +122,13 @@ impl<DB: Database + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct NetworkHandle {
-    inner: Arc<NetworkInner>,
-}
-
-impl NetworkHandle {
-    pub fn new(tx: UnboundedSender<NetworkHandleMessage>) -> Self {
-        Self {
-            inner: Arc::new(NetworkInner{ to_manager_tx: tx})
-        }
-    }
-
-    pub fn send(&self, msg: NetworkHandleMessage) {
-        if let Err(e) = self.inner.to_manager_tx.send(msg) {
-            eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
-        }
-    }
-}
 
 #[derive(Debug)]
-pub struct NetworkInner {
-    to_manager_tx: UnboundedSender<NetworkHandleMessage>,
-}
+pub struct NoopConsensusHandle;
 
-pub struct NoopImporter;
-
-impl BlockImportable for NoopImporter {
-    type B = Block;
-    fn import_block(&self, _block: Self::B) -> Result<(), primitives::error::BlockImportError> {
-        Err(BlockImportError::NoopImporter)
-    }
-}
-
-#[derive(Debug)]
-pub enum NetworkHandleMessage {
-    PeerConnectionTest{
-        peer: SocketAddr
-    },
-    NewTransaction(SignedTransaction),
-}
-
-impl NetworkHandleMessage {
-    pub fn encode(&self) -> Vec<u8> {
-        match self {
-            Self::PeerConnectionTest { peer: _ } => {
-                let msg_type = 0x00 as u8;
-                let payload_length = 0x00 as u8;
-                let protocol_version = 0x00 as u8;
-
-                let raw: Vec<u8> = vec![msg_type, payload_length, protocol_version];
-                raw
-            }
-            Self::NewTransaction(signed) => {
-                let msg_type = 0x01 as u8;
-                let payload_length = 0x41 as u8; // 65
-                let protocol_version = 0x00 as u8;
-                let mut data = signed.encode();
-
-                let mut raw: Vec<u8> = vec![msg_type, payload_length, protocol_version];
-                raw.append(&mut data);
-                raw
-            }
-        }
-    }
-
-    // First Byte: Message Type
-    // Second Byte: Payload Length
-    // Third Byte: Protocol Version
-    // remains: Data
-    pub fn decode(buf: &[u8], addr: SocketAddr) -> Option<NetworkHandleMessage>{
-        if buf.len() < 3 {
-            return None;
-        }
-
-        let msg_type = buf[0];
-        let payload_length = buf[1] as usize;
-        let protocol_version = buf[2];
-
-        if buf.len() < 3 + payload_length {
-            return None;
-        }
-
-        if protocol_version > 0 {
-            return None;
-        }
-
-        let data = &buf[3..];
-
-        match msg_type {
-            0x00 => Some(NetworkHandleMessage::PeerConnectionTest{peer: addr}),
-            0x01 => {
-                let signed = match SignedTransaction::decode(&data.to_vec()) {
-                    Ok((signed,_)) => signed,
-                    Err(e) => {
-                        return None
-                    }
-                };
-                Some(NetworkHandleMessage::NewTransaction(signed))
-            }
-            _ => {
-                None
-            }
-        }
+impl Handle for NoopConsensusHandle {
+    type Msg = ConsensusHandleMessage;
+    fn send(&self, _block: Self::Msg) {
+        // Do nothing
     }
 }

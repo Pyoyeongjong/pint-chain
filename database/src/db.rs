@@ -49,4 +49,20 @@ impl Database for Arc<InMemoryDB> {
         let latest_accounts = state.entry(self.latest).or_default();
         Ok(latest_accounts.get(address).or(None).cloned())
     }
+    
+    fn get_state(&self, block_no: u64) -> Result<(Option<HashMap<Address, Account>>, Option<World>), crate::error::DatabaseError> {
+        let accounts = self.accounts.read();
+        let mut account_base = None;
+        if let Some(state_account) = accounts.get(&block_no) {
+            account_base = Some(state_account.clone());
+        }
+
+        let field = self.field.read();
+        let mut field_base = None;
+        if let Some(state_field) = field.get(&block_no) {
+            field_base = Some(state_field.clone());
+        }
+
+        Ok((account_base, field_base))
+    }
 }

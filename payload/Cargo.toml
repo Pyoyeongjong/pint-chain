@@ -8,3 +8,5 @@ license.workspace = true
 primitives.workspace = true
 provider.workspace = true
 transaction_pool.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true

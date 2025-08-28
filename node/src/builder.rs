@@ -39,26 +39,29 @@ impl LaunchContext {
         let pool = Pool::new(provider.clone());
         // Build PayloadBuilder
         let builder = PayloadBuilder::new(provider.clone(), pool.clone());
+        let (builder_handle, builder_rx) = builder.start_orchestration();
         // Build Network
         let network_handle = NetworkBuilder::start_network(pool.clone(), network_config).await?;
         // Build Miner
-        let (miner_handle, consensus_rx) = Miner::build_miner();
+        let (miner_handle, miner_rx) = Miner::build_miner();
         // Build Consensus
         let consensus = ConsensusEngine::new(
             pool.clone(), 
-            builder.clone(), 
-            network_handle.clone(), 
+            builder_handle,
+            Box::new(network_handle.clone()), 
             provider.clone(), 
             miner_handle, 
-            consensus_rx
+            miner_rx,
+            builder_rx,
         );
+
+        let consensus_handle = consensus.start_consensus();
 
         Ok(Node {
             provider,
             pool,
-            builder,
-            consensus,
-            network: network_handle,
+            consensus: Box::new(consensus_handle),
+            network: Box::new(network_handle),
         })
     }
 }

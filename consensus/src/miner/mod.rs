@@ -1,7 +1,11 @@
+pub mod handle;
+
 use std::sync::{atomic::AtomicU64, Arc};
 
-use primitives::block::Payload;
+use primitives::{handle::{MinerHandleMessage, MinerResultMessage}};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+
+use crate::miner::handle::MinerHandle;
 
 #[derive(Debug)]
 pub struct Miner {
@@ -12,7 +16,6 @@ pub struct Miner {
 }
 
 impl Miner {
-
     pub fn new(miner_rx: UnboundedReceiver<MinerHandleMessage>, consensus_tx:UnboundedSender<MinerResultMessage>) -> Self {
         Self {
             miner_rx,
@@ -24,6 +27,7 @@ impl Miner {
 
     pub fn start_channel(self) {
         tokio::spawn(async move{
+            println!("Miner chainnel starts.");
             let Miner { mut miner_rx, consensus_tx, epoch, worker } = self;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
@@ -51,28 +55,3 @@ impl Miner {
 
 }
 
-#[derive(Debug)]
-pub struct MinerHandle {
-    inner: Arc<MinerInner>,
-}
-
-impl MinerHandle {
-    pub fn new(miner_tx: UnboundedSender<MinerHandleMessage>) -> Self {
-        Self {
-            inner: Arc::new(MinerInner { to_manager_tx: miner_tx })
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct MinerInner {
-    to_manager_tx: UnboundedSender<MinerHandleMessage>,
-}
-
-
-#[derive(Debug)]
-pub enum MinerHandleMessage {
-    NewPayload(Payload),
-}
-
-pub enum MinerResultMessage {}

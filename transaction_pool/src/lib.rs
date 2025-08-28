@@ -25,7 +25,7 @@ impl<DB: Database> Pool<DB> {
     }
 
 
-    pub fn add_transaction(&mut self, origin: TransactionOrigin, transaction: Recovered) -> PoolResult<TxHash>{
+    pub fn add_transaction(&self, origin: TransactionOrigin, transaction: Recovered) -> PoolResult<TxHash>{
         let (_hash, outcome) = self.validate(origin, transaction);
         match outcome {
             TransactionValidationOutcome::Valid { transaction, balance, nonce } => {

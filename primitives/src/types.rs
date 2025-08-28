@@ -59,4 +59,32 @@ impl Account {
         self.nonce = nonce;
         self.balance = balance;
     }
+
+    pub fn balance(&self) -> U256 {
+        self.balance
+    }
+
+    pub fn nonce(&self) -> U256 {
+        self.balance
+    }
+
+    pub fn sub_balance(&mut self, value: U256) {
+        if value > self.balance {
+            self.balance = U256::ZERO;
+        } else {
+            self.balance -= value;
+        }
+    }
+
+    pub fn add_balance(&mut self, value: U256) {
+        if self.balance > U256::MAX - value {
+            self.balance = U256::MAX;
+        } else {
+            self.balance += value;
+        }
+    }
+
+    pub fn increase_nonce(&mut self) {
+        self.nonce += 1;
+    }
 }

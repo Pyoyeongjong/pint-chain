@@ -2,11 +2,13 @@ use std::array::TryFromSliceError;
 
 pub enum BlockImportError {
     NoopImporter,
+    ProviderError,
 }
 
 pub enum EncodeError{
     Invalid,
 }
+
 
 #[derive(Debug)]
 pub enum DecodeError{

@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, sync::{Arc}};
 
 use parking_lot::RwLock;
+use primitives::handle::Handle;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mpsc::{self, UnboundedSender}}};
 
 use crate::{NetworkHandle, NetworkHandleMessage};

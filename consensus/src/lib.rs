@@ -1,54 +1,102 @@
-use std::sync::Arc;
-
-use network::NetworkHandle;
-use payload::PayloadBuilder;
-use primitives::block::{Block, BlockImportable};
+use payload::handle::{PayloadBuilderHandle, };
+use primitives::{block::{Block, BlockImportable, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerResultMessage, NetworkHandleMessage, PayloadBuilderResultMessage}};
 use provider::{Database, ProviderFactory};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{self, UnboundedReceiver };
 use transaction_pool::Pool;
 
-use crate::{importer::BlockImporter, miner::{MinerHandle, MinerResultMessage}};
+use crate::{handle::ConsensusHandle, importer::BlockImporter, miner::handle::MinerHandle};
 
 pub mod miner;
 pub mod importer;
+pub mod handle;
 
 #[derive(Debug)]
 pub struct ConsensusEngine<DB: Database> {
-    network: NetworkHandle,
-    builder: PayloadBuilder<DB>,
     importer: BlockImporter<DB>,
     pool: Pool<DB>,
-    miner_tx: MinerHandle,
-    consensus_rx: UnboundedReceiver<MinerResultMessage>,
+    // Network
+    network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
+    // PayloadBuilder
+    builder_handle: PayloadBuilderHandle,
+    builder_events: UnboundedReceiver<PayloadBuilderResultMessage>,
+    // Miner
+    miner_handle: MinerHandle,
+    miner_events: UnboundedReceiver<MinerResultMessage>,
 }
 
 impl<DB: Database> ConsensusEngine<DB> {
-    pub fn new(pool: Pool<DB>, builder: PayloadBuilder<DB>, network: NetworkHandle, provider: ProviderFactory<DB>, miner_tx: MinerHandle, consensus_rx: UnboundedReceiver<MinerResultMessage>) -> Self {
+    pub fn new(
+        pool: Pool<DB>, 
+        builder_handle: PayloadBuilderHandle, 
+        network: Box<dyn Handle<Msg = NetworkHandleMessage>>, 
+        provider: ProviderFactory<DB>, 
+        miner_handle: MinerHandle, 
+        miner_events: UnboundedReceiver<MinerResultMessage>,
+        builder_events: UnboundedReceiver<PayloadBuilderResultMessage>
+
+    ) -> Self {
         Self {
             network,
-            builder,
             importer: BlockImporter::new(provider),
             pool,
-            miner_tx,
-            consensus_rx,
+            builder_handle,
+            miner_handle,
+            miner_events,
+            builder_events,
         }
     }
-}
 
-impl<DB: Database > BlockImportable for ConsensusEngine<DB> where DB: Database + Send + Sync + 'static{
-    type B = Block;
+    pub fn start_consensus(self) -> ConsensusHandle{
 
-    fn import_block(&self, block: Self::B) -> Result<(), primitives::error::BlockImportError> {
-        todo!()
+        let (tx, mut rx) = mpsc::unbounded_channel::<ConsensusHandleMessage>();
+
+        let consensus_handle = ConsensusHandle::new(tx);
+
+        tokio::spawn(async move {
+            println!("Consensus channel starts.");
+            let Self { 
+                importer, 
+                pool, 
+                network, 
+                builder_handle, 
+                mut builder_events, 
+                miner_handle, 
+                mut miner_events 
+            } = self;
+
+            loop {
+                tokio::select! {
+                    Some(msg) = miner_events.recv() => {
+
+                    }
+
+                    Some(msg) = builder_events.recv() => {
+
+                    }
+
+                    Some(msg) = rx.recv() => {
+                        match msg {
+                            ConsensusHandleMessage::ImportBlock(block) => {
+                                let res = importer.validate_block(block);
+                            }
+                            ConsensusHandleMessage::NewTransaction(recovered) => {
+                                // revise current payload (maybe?)
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        consensus_handle
     }
 }
 
-pub enum ConsensusHandleMessage {}
+impl<DB: Database> BlockImportable for ConsensusEngine<DB> 
+{
+    type B = Block;
 
-pub struct ConsensusHandle {
-    inner: Arc<ConsensusInner>,
-}
-
-pub struct ConsensusInner {
-    to_manager_tx: UnboundedSender<ConsensusHandleMessage>,
+    fn import_block(&self, block: Self::B) -> Result<BlockValidationResult, BlockImportError> {
+        self.importer.validate_block(block)
+    }
 }
