@@ -5,6 +5,11 @@ pub enum BlockImportError {
     ProviderError,
 }
 
+pub enum BlockValidatioError {
+    DefaultError,
+    ExecutionError,
+}
+
 pub enum EncodeError{
     Invalid,
 }

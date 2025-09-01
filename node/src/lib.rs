@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{extract::State, routing::post, Json, Router};
-use consensus::ConsensusEngine;
 use network::{builder::NetworkConfig};
 use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, transaction::SignedTransaction};
 use provider::{Database, ProviderFactory};
@@ -19,12 +18,38 @@ pub mod rpc;
 #[derive(Debug)]
 pub struct Node<DB: Database> {
     provider: ProviderFactory<DB>,
-    pool: Pool<DB>,
-    consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
-    network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
+    pub pool: Pool<DB>,
+    pub consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
+    pub network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
 }
 
 impl<DB: Database> Node<DB> {
+
+    pub fn handle_tx(&self, tx: SignedTransaction) {
+        let tx_hash = tx.hash;
+        let recovered = match tx.into_recovered() {
+            Ok(recovered) => {
+                recovered
+            }
+            Err(e) => {
+                eprintln!("Failed to handle tx: {:?}", tx_hash);
+                return;
+            }
+        };
+
+        if let Err(e) = self.pool.add_transaction(TransactionOrigin::External, recovered) {
+            eprintln!("Failed to handle tx: {:?}", tx_hash);
+        }
+    }
+
+    pub fn handle_consensus(&self, msg: ConsensusHandleMessage) {
+        self.consensus.send(msg);
+    }
+
+    pub fn handle_network(&self, msg: NetworkHandleMessage) {
+        self.network.send(msg);
+    }
+
     pub async fn run_rpc(self, network_config: NetworkConfig) -> Result<(), Box<dyn std::error::Error>> {
 
         println!("PintCnain Node Rpc Server starts.");
@@ -46,7 +71,6 @@ impl<DB: Database> Node<DB> {
         };
 
         Ok(())
-
     }
 }
 

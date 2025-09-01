@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 // This project use alloy_primitives in only this file.
 pub use alloy_primitives::{B256, U256};
 use rand::Rng;
@@ -7,6 +9,7 @@ use crate::error::AddressError;
 pub type ChainId = u64;
 pub type TxHash = B256;
 pub type BlockHash = B256;
+pub type PayloadId = u64;
 
 const ADDR_LEN: usize = 20;
 
@@ -28,6 +31,7 @@ impl Address {
         Ok(Address(arr))
     }
 
+    // This is for dev/test code
     pub fn random() -> Self {
         let mut arr = [0u8; 20];
         let mut rng = rand::rng();
@@ -41,6 +45,13 @@ impl Address {
     
     pub fn get_addr(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl Default for Address {
+    fn default() -> Self {
+        let addr = [0u8; 20];
+        Self::from_byte(addr)
     }
 }
 
@@ -86,5 +97,18 @@ impl Account {
 
     pub fn increase_nonce(&mut self) {
         self.nonce += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::types::Address;
+
+    #[test]
+    fn make_random_address() {
+        for _ in 0..5 {
+            let addr = Address::random();
+            dbg!(addr.get_addr_hex());
+        }
     }
 }

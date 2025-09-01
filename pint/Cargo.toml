@@ -7,7 +7,10 @@ license.workspace = true
 [dependencies]
 node.workspace = true
 clap = { version = "4.5.42", features = ["derive"] }
+
 primitives.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 network.workspace = true
+hex.workspace = true
+transaction_pool.workspace = true

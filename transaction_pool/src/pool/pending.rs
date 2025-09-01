@@ -1,12 +1,12 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::{identifier::TransactionId, ordering::PintOrdering, validator::validtx::ValidPoolTransaction};
+use crate::{identifier::TransactionId, ordering::PintOrdering, pool::best::BestTransactions, validator::validtx::ValidPoolTransaction};
 
 #[derive(Default, Debug)]
 pub struct PendingPool {
-    ordering: PintOrdering,
-    submission_id: u64,
-    independent: BTreeMap<TransactionId, PendingTransaction>,
+    pub ordering: PintOrdering,
+    pub submission_id: u64,
+    pub independent: BTreeMap<TransactionId, PendingTransaction>,
 }
 
 impl PendingPool {
@@ -56,11 +56,36 @@ impl PendingPool {
     pub fn len(&self) -> usize {
         self.independent.len()
     }
+
+    pub fn best(&self) -> BestTransactions {
+        BestTransactions {
+            independent: self.independent.values().cloned().collect()
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PendingTransaction {
-    submission_id: u64,
-    transaction: Arc<ValidPoolTransaction>,
-    priority: u128,
+    pub submission_id: u64,
+    pub transaction: Arc<ValidPoolTransaction>,
+    pub priority: u128,
+}
+
+impl Ord for PendingTransaction {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority).then_with(|| self.submission_id.cmp(&other.submission_id))
+    }
+}
+
+impl PartialOrd for PendingTransaction {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for PendingTransaction {}
+impl PartialEq for PendingTransaction {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
 }

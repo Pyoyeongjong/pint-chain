@@ -18,9 +18,9 @@ pub struct LaunchContext {
 }
 
 impl LaunchContext {
-    pub fn new(network_config: NetworkConfig) -> Self {
+    pub fn new(network_config: NetworkConfig, block_config: BlockConfig) -> Self {
         Self {
-            block_config: BlockConfig::default(),
+            block_config,
             pool_config: PoolConfig::default(),
             network_config,
             rpc_config: RpcConfig::default(),
@@ -31,15 +31,15 @@ impl LaunchContext {
 
 impl LaunchContext {
     pub async fn launch(self) -> Result<Node<Arc<InMemoryDB>>, NodeLaunchError> {
-        let Self {network_config, ..} = self;
+        let Self {network_config, block_config,..} = self;
         // Build Provider
         let db = Arc::new(InMemoryDB::new());
         let provider = ProviderFactory::new(db);
         // Build Pool
         let pool = Pool::new(provider.clone());
         // Build PayloadBuilder
-        let builder = PayloadBuilder::new(provider.clone(), pool.clone());
-        let (builder_handle, builder_rx) = builder.start_orchestration();
+        let builder = PayloadBuilder::new(block_config.miner_address, provider.clone(), pool.clone());
+        let (builder_handle, builder_rx) = builder.start_builder();
         // Build Network
         let network_handle = NetworkBuilder::start_network(pool.clone(), network_config).await?;
         // Build Miner

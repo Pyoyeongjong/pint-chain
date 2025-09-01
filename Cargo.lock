@@ -677,14 +677,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "executor"
-version = "0.1.0"
-dependencies = [
- "primitives",
- "provider",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1314,11 +1306,13 @@ name = "pint"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "hex",
  "network",
  "node",
  "primitives",
  "tokio",
  "tokio-stream",
+ "transaction_pool",
 ]
 
 [[package]]

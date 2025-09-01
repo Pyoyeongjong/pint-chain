@@ -106,7 +106,7 @@ pub enum PayloadBuilderHandleMessage {
 }
 #[derive(Debug)]
 pub enum PayloadBuilderResultMessage {
-
+    Payload(Payload)
 }
 
 #[derive(Debug)]

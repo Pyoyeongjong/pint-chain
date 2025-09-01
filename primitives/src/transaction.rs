@@ -259,11 +259,11 @@ mod tests {
 
     #[test]
     fn test_primitives_encode_and_decode_transaction() {
-        let (signing_key, sender) = create_key_pairs("pint".as_bytes());
+        let (signing_key, sender) = create_key_pairs("chain".as_bytes());
         let sender = Address::from_byte(sender.try_into().unwrap());
         dbg!(&sender.get_addr_hex());
 
-        let (_, receiver) = create_key_pairs("chain".as_bytes());
+        let (_, receiver) = create_key_pairs("banana".as_bytes());
         let receiver = Address::from_byte(receiver.try_into().unwrap());
         dbg!(receiver.get_addr_hex());
 
@@ -271,8 +271,8 @@ mod tests {
             chain_id: 0,
             nonce: 0,
             to: receiver,
-            fee: 1,
-            value: U256::from(1),
+            fee: 5,
+            value: U256::from(1000),
         };
 
         let tx_hash = tx.encode_for_signing();

@@ -1,11 +1,15 @@
 
-use crate::error::BlockImportError;
+use core::hash;
+
+use sha2::{Digest, Sha256};
+
+use crate::error::{BlockImportError, BlockValidatioError};
 use crate::transaction::Recovered;
 use crate::{transaction::SignedTransaction, types::BlockHash};
 use crate::types::{Address, B256};
 
 /// Block hash
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Header {
     pub previous_hash: BlockHash, // 32
     pub transaction_root: B256, // 32
@@ -29,6 +33,19 @@ impl Header {
         raw[132..136].copy_from_slice(&self.difficulty.to_be_bytes());
         raw[136..144].copy_from_slice(&self.height.to_be_bytes());
         raw.to_vec()
+    }
+
+    pub fn calculate_hash(&self) -> BlockHash {
+        let mut hasher = Sha256::new();
+        hasher.update(self.previous_hash);
+        hasher.update(self.transaction_root);
+        hasher.update(self.state_root);
+        hasher.update(self.timestamp.to_string().as_bytes());
+        hasher.update(self.proposer.get_addr());
+        hasher.update(self.nonce.to_string().as_bytes());
+        hasher.update(self.difficulty.to_string().as_bytes());
+        hasher.update(self.height.to_string().as_bytes());
+        B256::from_slice(&hasher.finalize())
     }
 }
 
@@ -58,9 +75,20 @@ impl Block {
     }
 }
 
+/// Block hash
+#[derive(Debug, Default)]
+pub struct PayloadHeader {
+    pub previous_hash: BlockHash, 
+    pub transaction_root: B256,
+    pub proposer: Address, 
+    pub difficulty: u32, 
+    pub height: u64, 
+}
+
 #[derive(Debug)]
 /// Payload Structure (Before Mining)
 pub struct Payload {
+    pub header: PayloadHeader,
     pub body: Vec<SignedTransaction>,
 }
 
@@ -72,5 +100,26 @@ pub trait BlockImportable: Send + Sync {
 }
 
 pub struct BlockValidationResult {
+    pub success: bool,
+    pub error: Option<BlockValidatioError>,
+}
 
+impl BlockValidationResult {
+    pub fn success(&mut self) {
+        self.success = true;
+    }
+
+    pub fn failed(&mut self) {
+        self.success = false;
+    }
+
+    pub fn add_error(&mut self, e: BlockValidatioError) {
+        self.error = Some(e)
+    }
+}
+
+impl Default for BlockValidationResult {
+    fn default() -> Self {
+        Self { success: false, error: Some(BlockValidatioError::DefaultError) }
+    }
 }

@@ -5,7 +5,7 @@ license = "MIT"
 resolver = "3"
 
 [workspace]
-members = [ "consensus", "database", "executor", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]
+members = [ "consensus", "database", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]
 default-members = ["pint"]
 
 [workspace.dependencies]
@@ -13,7 +13,6 @@ primitives = { path = "primitives" }
 provider = { path = "provider" }
 database = { path = "database" }
 transaction_pool = { path = "transaction_pool" }
-executor = { path = "executor" }
 payload = { path = "payload" }
 network = { path = "network" }
 consensus = { path = "consensus" }
@@ -22,3 +21,4 @@ node = { path = "node" }
 tokio = { version = "1.0.7", features = ["full"] }
 tokio-stream = "0.1.17"
 parking_lot = { version =  "0.12.4" }
+hex = "0.4.3"

@@ -1,5 +1,5 @@
-use primitives::{block::{Block, BlockValidationResult}, error::BlockImportError};
-use provider::{state, Database, ProviderFactory};
+use primitives::{block::{Block, BlockValidationResult}, error::{BlockImportError, BlockValidatioError}};
+use provider::{executor::Executor, state, Database, ProviderFactory};
 
 #[derive(Debug)]
 pub struct BlockImporter<DB: Database> {
@@ -13,22 +13,36 @@ impl<DB: Database> BlockImporter<DB> {
 
     pub fn validate_block(&self, block: Block) -> Result<BlockValidationResult, BlockImportError> {
         // validate block with no state
-        let _res = Self::validate_block_with_no_state(&block);
+        let mut result: BlockValidationResult = Self::validate_block_with_no_state(&block)?;
 
         let state_provider = self.provider.latest();
-        let mut executable_state = match state_provider.executable_state() {
+        let executable_state = match state_provider.executable_state() {
             Ok(exec_state) => exec_state,
             Err(e) => return Err(BlockImportError::ProviderError),
         };
 
-        // validate block with state
-        let res = executable_state.execute_block(&block);
+        let mut executor = Executor::new(executable_state);
 
+        // validate block with state
+        match executor.execute_block(&block) {
+            Ok(()) => {
+                result.success();
+            }
+
+            Err(_e) => {
+                result.failed();
+                result.add_error(BlockValidatioError::ExecutionError);
+            }
+        }
         
-        Ok(BlockValidationResult {})
+        Ok(result)
     }
 
-    fn validate_block_with_no_state(block: &Block) -> Result<(), BlockImportError>{
-        todo!()
+    fn validate_block_with_no_state(block: &Block) -> Result<BlockValidationResult, BlockImportError>{
+        // todo!
+        Ok(BlockValidationResult {
+            success: true,
+            error: None,
+        })
     }
 }

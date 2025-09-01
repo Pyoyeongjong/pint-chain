@@ -3,7 +3,7 @@ use std::sync::Arc;
 use primitives::{transaction::Recovered, types::TxHash};
 use provider::{Database, ProviderFactory};
 
-use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::PoolInner, validator::TransactionValidationOutcome};
+use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::{best::BestTransactions, PoolInner}, validator::TransactionValidationOutcome};
 
 pub mod pool;
 pub mod validator;
@@ -53,6 +53,10 @@ impl<DB: Database> Pool<DB> {
         let outcome = self.pool.validator().validate_transaction(origin, transaction);
 
         (hash, outcome)
+    }
+
+    pub fn best_transactions(&self) -> BestTransactions {
+        self.pool.best_transactions()
     }
 }
 

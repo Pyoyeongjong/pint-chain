@@ -2,7 +2,7 @@ use std::{collections::{btree_map::Entry, BTreeMap, HashMap}, sync::Arc};
 
 use primitives::{transaction::Tx, types::{TxHash, U256}};
 
-use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier::{SenderId, SenderInfo, TransactionId}, pool::{self, parked::ParkedPool, pending::PendingPool, state::{SubPool, TxState}}, validator::validtx::ValidPoolTransaction};
+use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier::{SenderId, SenderInfo, TransactionId}, pool::{self, best::BestTransactions, parked::ParkedPool, pending::PendingPool, state::{SubPool, TxState}}, validator::validtx::ValidPoolTransaction};
 
 
 #[derive(Debug)]
@@ -120,6 +120,10 @@ impl TxPool {
             println!("Removed transaction from a subpool: {:?}, ",tx);
         }
         tx
+    }
+
+    pub fn best_transactions(&self) -> BestTransactions {
+        self.pending_pool.best()
     }
 }
 

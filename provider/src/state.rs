@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use primitives::{block::Block, transaction::{self, Recovered, SignedTransaction, Tx}, types::{Account, Address, TxHash, U256}, world::World};
 
-use crate::error::{ExecutionError, TransactionExecError};
+use crate::{error::{StateExecutionError, TxExecutionError}, executor::Receipt};
 
 
 #[derive(Debug)]
@@ -19,41 +19,19 @@ pub struct ExecutableState {
 }
 
 impl ExecutableState {
-    pub fn execute_block(&mut self, block: &Block) -> Result<(), ExecutionError> {
-        let transactions = &block.body;
-        let proposer = block.header().proposer;
-        let mut fee_sum = U256::ZERO;
-        for transaction in transactions.iter() {
-            match self.execute_transaction(transaction) {
-                Ok(fee) => {
-                    fee_sum += U256::from(fee)
-                }
-                Err(e) => return Err(ExecutionError::TransactionExecutionError(transaction.hash(), e))
-            }
-        }
 
-        match self.accounts_write.get_mut(&proposer) {
-            Some(account) => {
-                account.add_balance(fee_sum);
-            }
-            None => {
-                let mut new_account = Account::default();
-                new_account.add_balance(fee_sum);
-                self.accounts_write.insert(proposer, new_account);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn execute_transaction(&mut self, transaction: &Recovered) -> Result<u128, TransactionExecError> {
+    pub fn execute_transaction(&mut self, transaction: &Recovered) -> Result<u128, StateExecutionError> {
         let sender = transaction.signer();
         let receiver = transaction.to();
 
         let mut sender_account = match self.accounts_write.get(&sender) {
             Some(account) => account.clone(),
             // sender must have balance because of fee 
-            None => return Err(TransactionExecError::SenderHasNoAccount)
+            None => return Err(
+                StateExecutionError::TransactionExecutionError(
+                    transaction.hash(),
+                    TxExecutionError::SenderHasNoAccount
+                )),
         };
 
         let mut receiver_account = match self.accounts_write.get(&receiver) {
@@ -64,11 +42,19 @@ impl ExecutableState {
         };
 
         if U256::from(transaction.fee()) > sender_account.balance() - transaction.value() {
-            return Err(TransactionExecError::SenderHasNotEnoughBalance);
+            return Err(
+                StateExecutionError::TransactionExecutionError(
+                    transaction.hash(),
+                    TxExecutionError::SenderHasNotEnoughBalance
+                ));
         }
 
         if sender_account.nonce() != transaction.nonce() {
-            return Err(TransactionExecError::NonceError);
+            return Err(
+                StateExecutionError::TransactionExecutionError(
+                    transaction.hash(),
+                    TxExecutionError::NonceError
+                ));
         }
 
         sender_account.sub_balance(transaction.value());

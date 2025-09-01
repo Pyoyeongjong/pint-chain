@@ -1,12 +1,13 @@
 use parking_lot::RwLock;
 use provider::{Database, ProviderFactory};
 
-use crate::{pool::txpool::TxPool, validator::Validator};
+use crate::{pool::{best::BestTransactions, txpool::TxPool}, validator::Validator};
 
 pub mod txpool;
 pub mod pending;
 pub mod parked;
 pub mod state;
+pub mod best;
 
 #[derive(Debug)]
 pub struct PoolInner<DB: Database> {
@@ -28,6 +29,10 @@ impl<DB: Database> PoolInner<DB> {
 
     pub fn pool(&self) -> &RwLock<TxPool> {
         &self.transaction_pool
+    }
+
+    pub fn best_transactions(&self) -> BestTransactions {
+        self.pool().read().best_transactions()
     }
 }
 
