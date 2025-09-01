@@ -3,7 +3,7 @@ use std::sync::Arc;
 use primitives::handle::{Handle, PayloadBuilderHandleMessage};
 use tokio::sync::mpsc::UnboundedSender;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PayloadBuilderHandle {
     inner: Arc<PayloadBuilderInner>,
 }

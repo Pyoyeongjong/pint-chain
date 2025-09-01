@@ -51,6 +51,7 @@ impl<DB: Database> Provider<DB> {
         if accounts_base.is_none() || field_base.is_none() {
             return Err(ProviderError::StateNotExist(self.block_no));
         }
+        // unwrap() is safe!
         let accounts_write = accounts_base.clone().unwrap();
         let accounts_base = Arc::new(accounts_base.unwrap());
 

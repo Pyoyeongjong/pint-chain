@@ -76,10 +76,11 @@ impl Block {
 }
 
 /// Block hash
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PayloadHeader {
     pub previous_hash: BlockHash, 
     pub transaction_root: B256,
+    pub state_root: B256,
     pub proposer: Address, 
     pub difficulty: u32, 
     pub height: u64, 

@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::Arc};
 
-use primitives::{block::Block, transaction::Recovered, types::{Account, TxHash, U256}};
+use primitives::{block::Block, transaction::Recovered, types::{Account, TxHash, B256, U256}};
 
 use crate::{error::ExecutionError, state::{ExecutableState}};
 
@@ -20,7 +20,7 @@ impl Executor {
     }
     pub fn execute_transaction(&mut self, tx: &Recovered) 
     -> Result<Receipt, Infallible>{
-        let mut receipt = Receipt { tx_hash: tx.hash(), fee: 0, success: false, error: None };
+        let mut receipt = Receipt { tx_hash: tx.hash(), fee: 0, success: true, error: None };
         let fee = match self.state.execute_transaction(tx) {
             Ok(fee) => fee,
             Err(err) => {
@@ -63,11 +63,15 @@ impl Executor {
 
         Ok(())
     }
+
+    pub fn calculate_state_root(&self) -> B256 {
+        self.state.calculate_state_root()
+    }
 }
 
 
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Receipt {
     pub tx_hash: TxHash,
     pub fee: u128,

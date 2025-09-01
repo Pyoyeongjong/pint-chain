@@ -68,15 +68,13 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
 
                                 match res {
                                     Ok(_tx_hash) => {
-                                        dbg!(_tx_hash);
                                         // broadcast to peer
                                         for peer in this.peers.inner().read().iter() {
                                             peer.send(NetworkHandleMessage::NewTransaction(signed.clone()));
                                         }
                                     }
                                     Err(pool_error) => {
-                                        dbg!(pool_error.clone());
-                                        eprintln!("NetTransaction Pool Error: {:?}", pool_error);
+                                        eprintln!("New Transaction Pool Error: {:?}", pool_error);
                                         continue;
                                     }
                                 }

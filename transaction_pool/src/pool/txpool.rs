@@ -7,10 +7,10 @@ use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier
 
 #[derive(Debug)]
 pub struct TxPool {
-    all_transaction: AllTransaction,
+    pub all_transaction: AllTransaction,
     sender_info: HashMap<SenderId, SenderInfo>,
-    pending_pool: PendingPool,
-    parked_pool: ParkedPool,
+    pub pending_pool: PendingPool,
+    pub parked_pool: ParkedPool,
 }
 
 impl TxPool {

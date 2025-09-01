@@ -33,7 +33,7 @@ impl LaunchContext {
     pub async fn launch(self) -> Result<Node<Arc<InMemoryDB>>, NodeLaunchError> {
         let Self {network_config, block_config,..} = self;
         // Build Provider
-        let db = Arc::new(InMemoryDB::new());
+        let db = Arc::new(InMemoryDB::genesis_block());
         let provider = ProviderFactory::new(db);
         // Build Pool
         let pool = Pool::new(provider.clone());

@@ -64,6 +64,7 @@ async fn main() {
         eprintln!("Tx1 add failed");
     }
 
+
     // pint banana fee 10/ value 1000 nonce 1
     let tx = "00000000000000000000000000000001b2aaaf07a29937c3b833dca1c9659d98a95690700000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000003e800cb4bb629218b69617e717922e3e6829f378f10c427d0520c5c09650f48e6080786124947aba090cf93b9354df89571f0a25a9cad4204c5b7949e5d64d1303501";
     let data = hex::decode(tx).unwrap();
@@ -82,6 +83,7 @@ async fn main() {
         eprintln!("Tx3 add failed");
     }
 
+    node.pool.print_pool();
 
     // Starts RPC Server
     // Graceful shutdown

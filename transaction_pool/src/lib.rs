@@ -58,6 +58,16 @@ impl<DB: Database> Pool<DB> {
     pub fn best_transactions(&self) -> BestTransactions {
         self.pool.best_transactions()
     }
+
+    // for dbg!
+    pub fn print_pool(&self) {
+        let pool = self.pool.pool().read();
+        println!("All: {}, Pending: {}, Parked: {}",
+            pool.all_transaction.len(),
+            pool.pending_pool.len(),
+            pool.parked_pool.len()
+        )
+    }
 }
 
 

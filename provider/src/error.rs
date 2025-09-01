@@ -1,7 +1,7 @@
 use database::error::DatabaseError;
 use primitives::types::TxHash;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ExecutionError {
     StateExecutionError(StateExecutionError)
 }
@@ -11,14 +11,14 @@ pub enum ProviderError {
     StateNotExist(u64)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StateExecutionError {
     TransactionExecutionError(TxHash, TxExecutionError)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TxExecutionError {
     SenderHasNotEnoughBalance,
     SenderHasNoAccount,
-    NonceError,
+    NonceError(u64, u64),
 }

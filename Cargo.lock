@@ -1399,7 +1399,9 @@ name = "provider"
 version = "0.1.0"
 dependencies = [
  "database",
+ "hex",
  "primitives",
+ "sha2",
 ]
 
 [[package]]

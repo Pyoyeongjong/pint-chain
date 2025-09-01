@@ -9,7 +9,7 @@ pub mod handle;
 pub mod error;
 pub mod builder;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct PayloadBuilder<DB: Database> {
     address: Address,
     provider: ProviderFactory<DB>,
@@ -21,7 +21,7 @@ impl<DB: Database> PayloadBuilder<DB> {
         Self {
             address,
             provider,
-            pool
+            pool,
         }
     }
 
@@ -50,6 +50,7 @@ impl<DB: Database> PayloadBuilder<DB> {
                     println!("PayloadBuilder received message: {:?}", msg);
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
+                            println!("(BuildPayload) Accepted message");
                             let provider = provider.clone();
                             let pool = pool.clone();
                             let orchestration_tx = orchestration_tx.clone();
@@ -57,7 +58,7 @@ impl<DB: Database> PayloadBuilder<DB> {
                                 match default_paylod(BuildArguments::noob(address), provider, pool).await {
                                     Ok(payload) => {
                                         if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::Payload(payload)) {
-                                            eprintln!("(BuildPayload)Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                            eprintln!("(BuildPayload) Failed to send PayloadBuilderResultMessage: {:?}", e);
                                         };
                                     }
                                     Err(e) => {
@@ -122,10 +123,12 @@ async fn default_paylod<DB: Database>(
     let next_height = parent_header.height + 1;
     let tx_hashes = body.iter().map(|tx| tx.hash).collect();
     let transaction_root = calculate_merkle_root(tx_hashes);
+    let state_root = executor.calculate_state_root();
 
     let payload_header = PayloadHeader {
         previous_hash: parent_header.calculate_hash(),
         transaction_root,
+        state_root,
         proposer: address,
         difficulty: attributes.next_difficulty,
         height: next_height,
@@ -133,8 +136,10 @@ async fn default_paylod<DB: Database>(
 
     let payload = Payload {
         header: payload_header,
-        body
+        body: body,
     };
+
+    dbg!(&payload);
 
     Ok(payload)
 }

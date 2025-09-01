@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use payload::handle::{PayloadBuilderHandle, };
-use primitives::{block::{Block, BlockImportable, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerResultMessage, NetworkHandleMessage, PayloadBuilderResultMessage}};
+use primitives::{block::{Block, BlockImportable, BlockValidationResult, Payload}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage, NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage}};
 use provider::{Database, ProviderFactory};
 use tokio::sync::mpsc::{self, UnboundedReceiver };
 use transaction_pool::Pool;
@@ -19,6 +21,7 @@ pub struct ConsensusEngine<DB: Database> {
     // PayloadBuilder
     builder_handle: PayloadBuilderHandle,
     builder_events: UnboundedReceiver<PayloadBuilderResultMessage>,
+    latest_payload: Option<Payload>,
     // Miner
     miner_handle: MinerHandle,
     miner_events: UnboundedReceiver<MinerResultMessage>,
@@ -40,6 +43,7 @@ impl<DB: Database> ConsensusEngine<DB> {
             importer: BlockImporter::new(provider),
             pool,
             builder_handle,
+            latest_payload: None,
             miner_handle,
             miner_events,
             builder_events,
@@ -61,8 +65,13 @@ impl<DB: Database> ConsensusEngine<DB> {
                 builder_handle, 
                 mut builder_events, 
                 miner_handle, 
-                mut miner_events 
+                mut miner_events ,
+                latest_payload
             } = self;
+
+            if latest_payload.is_none() {
+                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
+            }
 
             loop {
                 tokio::select! {
@@ -71,7 +80,25 @@ impl<DB: Database> ConsensusEngine<DB> {
                     }
 
                     Some(msg) = builder_events.recv() => {
+                        match msg {
+                            PayloadBuilderResultMessage::Payload(payload) => {
+                                println!("(Consensus) accepted payload");
+                                if payload.body.len() == 0 {
+                                    println!("(Consensus) payload with no body. Try again..");
 
+                                    let builder_handle_cloned = builder_handle.clone();
+                                    tokio::spawn(async move {
+                                        tokio::time::sleep(Duration::from_secs(1)).await;
+                                        builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
+                                    });
+                                    continue;
+                                }
+                                dbg!(&payload);
+                                
+                                let miner_handle_cloned = miner_handle.clone();
+                                miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload));
+                            }
+                        }
                     }
 
                     Some(msg) = rx.recv() => {

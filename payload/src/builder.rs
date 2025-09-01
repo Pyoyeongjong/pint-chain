@@ -12,6 +12,7 @@ impl BuildArguments {
         let mut res = Self::default();
         res.address = address;
         res.attributes.max_transactions = 20;
+        res.attributes.next_difficulty = 10;
         res
     }
 }

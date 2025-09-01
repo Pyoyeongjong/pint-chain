@@ -17,7 +17,7 @@ pub mod rpc;
 
 #[derive(Debug)]
 pub struct Node<DB: Database> {
-    provider: ProviderFactory<DB>,
+    pub provider: ProviderFactory<DB>,
     pub pool: Pool<DB>,
     pub consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
     pub network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
@@ -76,8 +76,8 @@ impl<DB: Database> Node<DB> {
 
 pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
     let mut result = json!("method not found");
-    let mut success = false;
-    dbg!(&req.params[0].as_str());    match req.method.as_str() {
+    let mut success = false;  
+    match req.method.as_str() {
         "chain_name" => {
             result = json!("Pint");
         }

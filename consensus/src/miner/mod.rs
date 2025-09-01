@@ -33,8 +33,16 @@ impl Miner {
                 if let Some(msg) = miner_rx.recv().await {
                     println!("Miner received message: {:?}", msg);
                     match msg {
-                        MinerHandleMessage::NewPayload(paylod) => {
+                        MinerHandleMessage::NewPayload(payload) => {
+                            //spawn payload mining
+                            let consensus_tx = consensus_tx.clone();
+                            let epoch = epoch.clone();
+                            let worker = worker.clone();
 
+                            tokio::spawn(async move {
+                                let mut nonce: u64 = 0;
+                                
+                            });
                         }
                     }
                 }

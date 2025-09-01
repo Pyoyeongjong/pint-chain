@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use primitives::handle::MinerHandleMessage;
+use primitives::handle::{Handle, MinerHandleMessage};
 use tokio::sync::mpsc::UnboundedSender;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MinerHandle {
     inner: Arc<MinerInner>,
 }
@@ -12,6 +12,16 @@ impl MinerHandle {
     pub fn new(miner_tx: UnboundedSender<MinerHandleMessage>) -> Self {
         Self {
             inner: Arc::new(MinerInner { to_manager_tx: miner_tx })
+        }
+    }
+}
+
+impl Handle for MinerHandle {
+    type Msg = MinerHandleMessage;
+
+    fn send(&self, msg: Self::Msg) {
+        if let Err(e) = self.inner.to_manager_tx.send(msg) {
+            eprintln!("Failed to send MinerHandleMessage");
         }
     }
 }

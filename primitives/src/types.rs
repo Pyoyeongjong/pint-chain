@@ -75,8 +75,8 @@ impl Account {
         self.balance
     }
 
-    pub fn nonce(&self) -> U256 {
-        self.balance
+    pub fn nonce(&self) -> u64 {
+        self.nonce
     }
 
     pub fn sub_balance(&mut self, value: U256) {
