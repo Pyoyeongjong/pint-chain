@@ -1,6 +1,6 @@
 use std::{net::SocketAddr};
 
-use primitives::{block::{Block, BlockImportable, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}};
+use primitives::{block::{Block, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}};
 use provider::Database;
 use tokio::{net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
@@ -34,7 +34,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                     Ok((socket, addr)) = this.listener.accept() => {
                         let peer_len = this.peers.len();
                         if peer_len >= this.config.max_peer_size {
-                            println!("Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
+                            println!("(Network) Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
                         } else {
                             println!("New peer: {}", addr);
                             this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
@@ -43,13 +43,13 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
 
                     // NetworkHandle Message
                     Some(msg) = this.from_handle_rx.next() => {
-                        println!("Network received message: {:?}", msg);
+                        println!("(Network) Network received message: {:?}", msg);
                         match msg {
                             NetworkHandleMessage::PeerConnectionTest{peer: addr} => {
                                 let peer = match this.peers.find_peer(addr) {
                                     Some(peer) => peer,
                                     None => {
-                                        eprintln!("Can't find this peer. {:?}", addr);
+                                        eprintln!("(Network) Can't find this peer. {:?}", addr);
                                         continue;
                                     }
                                 };
@@ -60,7 +60,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                                 let recovered = match signed.clone().into_recovered() {
                                     Ok(recovered) => recovered,
                                     Err(e) => {
-                                        eprintln!("NewTransaction Recover Error: {:?}", e);
+                                        eprintln!("(Network) NewTransaction Recover Error: {:?}", e);
                                         continue;
                                     }
                                 };
@@ -74,7 +74,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                                         }
                                     }
                                     Err(pool_error) => {
-                                        eprintln!("New Transaction Pool Error: {:?}", pool_error);
+                                        eprintln!("(Network) New Transaction Pool Error: {:?}", pool_error);
                                         continue;
                                     }
                                 }
@@ -82,6 +82,16 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                             NetworkHandleMessage::NewPayload(block) => {
                                 this.consensus.send(ConsensusHandleMessage::ImportBlock(block));
 
+                            }
+
+                            NetworkHandleMessage::BroadcastBlock(block) => {
+                                for peer in this.peers.inner().read().iter() {
+                                    peer.send(NetworkHandleMessage::NewPayload(block.clone()));
+                                }
+                            }
+
+                            NetworkHandleMessage::UpdateData => {
+                                todo!()
                             }
                         }
                     }

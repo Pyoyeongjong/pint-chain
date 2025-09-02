@@ -1,13 +1,16 @@
 use database::error::DatabaseError;
-use primitives::types::TxHash;
+use primitives::{error::RecoveryError, types::TxHash};
 
 #[derive(Clone, Debug)]
 pub enum ExecutionError {
-    StateExecutionError(StateExecutionError)
+    StateExecutionError(StateExecutionError),
+    TransactionRecoveryError(RecoveryError)
 }
 
+#[derive(Debug)]
 pub enum ProviderError {
     DatabaseError(DatabaseError),
+    ExecutionError(ExecutionError),
     StateNotExist(u64)
 }
 

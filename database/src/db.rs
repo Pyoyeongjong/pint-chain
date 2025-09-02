@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashMap}, ops::Add, sync::Arc};
+use std::{collections::{BTreeMap, HashMap}, ops::{Add, DerefMut}, sync::Arc};
 
 use parking_lot::RwLock;
 use primitives::{types::{Account, Address, U256}, world::World};
@@ -9,7 +9,7 @@ use crate::{traits::Database};
 pub struct InMemoryDB {
     accounts: RwLock<BTreeMap<u64, HashMap<Address, Account>>>,
     field: RwLock<BTreeMap<u64, World>>,
-    latest: u64,
+    latest: RwLock<u64>,
 }
 
 impl InMemoryDB {
@@ -22,7 +22,7 @@ impl InMemoryDB {
         let mut db = Self::new();
         let account = Account {
             nonce: 0,
-            balance: U256::from(100000000),
+            balance: U256::from(1000000000),
         };
         let address = Address::from_hex("28dcb1338b900419cd613a8fb273ae36e7ec2b1d".to_string()).unwrap();
         db.add_account(address, account.clone()).unwrap();
@@ -42,14 +42,14 @@ impl InMemoryDB {
         Self {
             accounts: RwLock::new(accounts), 
             field: RwLock::new(field), 
-            latest: 0,
+            latest: RwLock::new(0),
         }
     }
 
     pub fn add_account(&mut self, address: Address, account: Account) -> Result<(), Box<dyn std::error::Error>> {
         let mut state = self.accounts.write();
 
-        let latest_accounts = state.entry(self.latest).or_default();
+        let latest_accounts = state.entry(*self.latest.read()).or_default();
         latest_accounts.insert(address, account);
         
         Ok(())
@@ -58,13 +58,13 @@ impl InMemoryDB {
 
 impl Database for Arc<InMemoryDB> {
     fn block_number(&self) -> u64 {
-        (**self).latest
+        *self.latest.read()
     }
     
     fn basic(&self, address: &Address) -> Result<Option<Account>, Box<dyn std::error::Error>> {
         let mut state = self.accounts.write();
 
-        let latest_accounts = state.entry(self.latest).or_default();
+        let latest_accounts = state.entry(self.block_number()).or_default();
         Ok(latest_accounts.get(address).or(None).cloned())
     }
     
@@ -82,5 +82,15 @@ impl Database for Arc<InMemoryDB> {
         }
 
         Ok((account_base, field_base))
+    }
+    
+    fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World) {
+        let mut latest = self.latest.write();
+        *latest += 1;
+        let mut state = self.accounts.write();
+        state.insert(*latest, new_account_state);
+
+        let mut field = self.field.write();
+        field.insert(*latest, new_field_state);
     }
 }

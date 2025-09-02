@@ -1,6 +1,5 @@
 use std::{fmt::Debug, net::SocketAddr};
-
-use crate::{block::{Block, Payload}, transaction::{Recovered, SignedTransaction}};
+use crate::{block::{Block, Header, Payload, PayloadHeader}, transaction::{Recovered, SignedTransaction}};
 
 pub trait Handle: Send + Sync + std::fmt::Debug{
     type Msg: Send + Sync;
@@ -15,6 +14,8 @@ pub enum NetworkHandleMessage {
     },
     NewTransaction(SignedTransaction),
     NewPayload(Block),
+    BroadcastBlock(Block),
+    UpdateData
 }
 
 impl NetworkHandleMessage {
@@ -47,6 +48,23 @@ impl NetworkHandleMessage {
 
                 let mut raw: Vec<u8> = vec![msg_type, payload_length, protocol_version];
                 raw.append(&mut data);
+                raw
+            }
+            Self::BroadcastBlock(block) => {
+                let msg_type = 0x03 as u8;
+                let protocol_version = 0x00 as u8;
+                let mut data = block.encode();
+                let payload_length: u8 = data.len() as u8;
+                let mut raw: Vec<u8> = vec![msg_type, payload_length, protocol_version];
+                raw.append(&mut data);
+                raw
+            }
+            Self::UpdateData => {
+                let msg_type = 0x04 as u8;
+                let payload_length = 0x00 as u8;
+                let protocol_version = 0x00 as u8;
+
+                let raw: Vec<u8> = vec![msg_type, payload_length, protocol_version];
                 raw
             }
         }
@@ -111,7 +129,9 @@ pub enum PayloadBuilderResultMessage {
 
 #[derive(Debug)]
 pub enum MinerHandleMessage {
-    NewPayload(Payload),
+    NewPayload(PayloadHeader),
 }
 
-pub enum MinerResultMessage {}
+pub enum MinerResultMessage {
+    MiningSuccess(Header),
+}

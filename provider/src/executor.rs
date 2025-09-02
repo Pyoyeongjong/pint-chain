@@ -1,6 +1,6 @@
-use std::{convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, sync::Arc};
 
-use primitives::{block::Block, transaction::Recovered, types::{Account, TxHash, B256, U256}};
+use primitives::{block::Block, transaction::Recovered, types::{Account, Address, TxHash, B256, U256}, world::World};
 
 use crate::{error::ExecutionError, state::{ExecutableState}};
 
@@ -34,12 +34,18 @@ impl Executor {
     }
 
     // For validation external payload
-    pub fn execute_block(&mut self, block: &Block) -> Result<(), ExecutionError> {
+    pub fn execute_block(&mut self, block: &Block) -> Result<(HashMap<Address, Account>, World), ExecutionError> {
         let transactions = &block.body;
         let proposer = block.header().proposer;
         let mut fee_sum = U256::ZERO;
         for transaction in transactions.iter() {
-            match self.execute_transaction(transaction) {
+            let recovered = match transaction.clone().into_recovered() {
+                Ok(recovered) => recovered,
+                Err(e) => {
+                    return Err(ExecutionError::TransactionRecoveryError(e));
+                }
+            };
+            match self.execute_transaction(&recovered) {
                 Ok(receipt) => {
                     fee_sum += U256::from(receipt.fee);
                 }
@@ -61,7 +67,7 @@ impl Executor {
             }
         }
 
-        Ok(())
+        Ok((self.state.accounts_write.clone(), self.state.field_write.clone()))
     }
 
     pub fn calculate_state_root(&self) -> B256 {

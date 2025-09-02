@@ -12,3 +12,4 @@ network.workspace = true
 primitives.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
+sha2.workspace = true

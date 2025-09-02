@@ -1,5 +1,5 @@
 use primitives::{block::{Block, BlockValidationResult}, error::{BlockImportError, BlockValidatioError}};
-use provider::{executor::Executor, state, Database, ProviderFactory};
+use provider::{executor::Executor, Database, ProviderFactory};
 
 #[derive(Debug)]
 pub struct BlockImporter<DB: Database> {
@@ -11,7 +11,20 @@ impl<DB: Database> BlockImporter<DB> {
         Self { provider }
     }
 
-    pub fn validate_block(&self, block: Block) -> Result<BlockValidationResult, BlockImportError> {
+    pub fn import_new_block(&self, block: Block) -> Result<(), BlockImportError> {
+        if block.header.height != self.provider.block_number() + 1 {
+            return Err(BlockImportError::BlockHeightError);
+        }   
+        let res = self.validate_block(&block)?;
+        if res.success {
+            if let Err(e) = self.provider.import_new_block(block) {
+                return Err(BlockImportError::ProviderError);
+            }            
+        }
+        Ok(())
+    }
+
+    fn validate_block(&self, block: &Block) -> Result<BlockValidationResult, BlockImportError> {
         // validate block with no state
         let mut result: BlockValidationResult = Self::validate_block_with_no_state(&block)?;
 
@@ -25,7 +38,7 @@ impl<DB: Database> BlockImporter<DB> {
 
         // validate block with state
         match executor.execute_block(&block) {
-            Ok(()) => {
+            Ok((_, _)) => {
                 result.success();
             }
 

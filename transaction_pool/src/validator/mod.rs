@@ -79,6 +79,8 @@ impl<DB: Database> ValidatorInner<DB> {
             }
         };
 
+        let signer_hex = transaction.signer().get_addr_hex();
+
         // Checks nonce >= on_chain_node
         if transaction.nonce() < account.nonce {
             return TransactionValidationOutcome::Invalid{

@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use primitives::{block::{Payload, PayloadHeader}, handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage}, merkle::calculate_merkle_root, types::{Address, U256}};
 use provider::{executor::Executor, Database, ProviderFactory};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -125,6 +127,8 @@ async fn default_paylod<DB: Database>(
     let transaction_root = calculate_merkle_root(tx_hashes);
     let state_root = executor.calculate_state_root();
 
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs();
+
     let payload_header = PayloadHeader {
         previous_hash: parent_header.calculate_hash(),
         transaction_root,
@@ -132,14 +136,13 @@ async fn default_paylod<DB: Database>(
         proposer: address,
         difficulty: attributes.next_difficulty,
         height: next_height,
+        timestamp,
     };
 
     let payload = Payload {
         header: payload_header,
         body: body,
     };
-
-    dbg!(&payload);
 
     Ok(payload)
 }

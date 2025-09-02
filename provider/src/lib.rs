@@ -5,9 +5,9 @@ pub mod executor;
 use std::sync::Arc;
 
 pub use database::traits::Database;
-use primitives::{types::{Account, Address}};
+use primitives::{block::Block, types::{Account, Address}};
 
-use crate::{error::ProviderError, state::ExecutableState};
+use crate::{error::ProviderError, executor::Executor, state::ExecutableState};
 
 #[derive(Debug, Clone)]
 pub struct ProviderFactory<DB: Database> {
@@ -17,6 +17,10 @@ pub struct ProviderFactory<DB: Database> {
 impl<DB: Database + Clone> ProviderFactory<DB> {
     pub fn new(db: DB) -> Self {
         Self { db }
+    }
+
+    pub fn block_number(&self) -> u64 {
+        self.db.block_number()
     }
 
     pub fn latest(&self) -> Provider<DB> {
@@ -29,6 +33,32 @@ impl<DB: Database + Clone> ProviderFactory<DB> {
             db: self.db.clone(),
             block_no: block_no
         }
+    }
+
+    pub fn import_new_block(&self, block: Block) -> Result<(), ProviderError>{
+        // execute state
+        let provider = self.latest();
+        let state = match provider.executable_state() {
+            Ok(state) => state,
+            Err(e) => {
+                eprintln!("(ProviderFactory) Failed to create new executor: {:?}", e);
+                return Err(e);
+            }
+        };
+
+        let mut executor = Executor::new(state);
+        
+        let (new_account_state, new_field_state) = match executor.execute_block(&block) {
+            Ok((account, field)) => (account, field),
+            Err(e) => {
+                eprintln!("(ProviderFactory) Failed to execute block: {:?}", e);
+                return Err(ProviderError::ExecutionError(e));
+            }
+        };
+
+        // update results
+        self.db.update(new_account_state, new_field_state);
+        Ok(())
     }
 }
 

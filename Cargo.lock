@@ -468,6 +468,7 @@ dependencies = [
  "payload",
  "primitives",
  "provider",
+ "sha2",
  "tokio",
  "tokio-stream",
  "transaction_pool",

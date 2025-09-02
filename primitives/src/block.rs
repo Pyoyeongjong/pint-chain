@@ -9,7 +9,7 @@ use crate::{transaction::SignedTransaction, types::BlockHash};
 use crate::types::{Address, B256};
 
 /// Block hash
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Header {
     pub previous_hash: BlockHash, // 32
     pub transaction_root: B256, // 32
@@ -40,20 +40,20 @@ impl Header {
         hasher.update(self.previous_hash);
         hasher.update(self.transaction_root);
         hasher.update(self.state_root);
-        hasher.update(self.timestamp.to_string().as_bytes());
+        hasher.update(self.timestamp.to_be_bytes());
         hasher.update(self.proposer.get_addr());
-        hasher.update(self.nonce.to_string().as_bytes());
-        hasher.update(self.difficulty.to_string().as_bytes());
-        hasher.update(self.height.to_string().as_bytes());
+        hasher.update(self.difficulty.to_be_bytes());
+        hasher.update(self.height.to_be_bytes());
+        hasher.update(self.nonce.to_be_bytes());
         B256::from_slice(&hasher.finalize())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Block Structure 
 pub struct Block{
     pub header: Header,
-    pub body: Vec<Recovered>,
+    pub body: Vec<SignedTransaction>,
 }
 
 impl Block {
@@ -64,7 +64,7 @@ impl Block {
 
         // Recoverd -> SignedTransaction
         for recovered in self.body.iter() {
-            let encoded = recovered.tx().encode();
+            let encoded = recovered.encode();
             res = [res, encoded].concat();
         }
         res
@@ -83,22 +83,32 @@ pub struct PayloadHeader {
     pub state_root: B256,
     pub proposer: Address, 
     pub difficulty: u32, 
+    pub timestamp: u64,
     pub height: u64, 
 }
 
-#[derive(Debug)]
+impl PayloadHeader {
+    pub fn into_header(self, nonce: u64) -> Header {
+        Header {
+            previous_hash: self.previous_hash,
+            transaction_root: self.transaction_root,
+            state_root: self.state_root,
+            timestamp: self.timestamp,
+            proposer: self.proposer,
+            nonce,
+            difficulty: self.difficulty,
+            height: self.height
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 /// Payload Structure (Before Mining)
 pub struct Payload {
     pub header: PayloadHeader,
     pub body: Vec<SignedTransaction>,
 }
 
-
-/// Block Importer trait
-pub trait BlockImportable: Send + Sync {
-    type B;
-    fn import_block(&self, block: Self::B) -> Result<BlockValidationResult, BlockImportError>;
-}
 
 pub struct BlockValidationResult {
     pub success: bool,

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use payload::handle::{PayloadBuilderHandle, };
-use primitives::{block::{Block, BlockImportable, BlockValidationResult, Payload}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage, NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage}};
+use primitives::{block::{Block, Payload}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage, NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage}};
 use provider::{Database, ProviderFactory};
 use tokio::sync::mpsc::{self, UnboundedReceiver };
 use transaction_pool::Pool;
@@ -69,22 +69,56 @@ impl<DB: Database> ConsensusEngine<DB> {
                 latest_payload
             } = self;
 
+            // initial functions
             if latest_payload.is_none() {
                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
             }
+            let mut latest_payload: Option<Payload> = None;
 
             loop {
+                
                 tokio::select! {
                     Some(msg) = miner_events.recv() => {
+                        match msg {
+                            MinerResultMessage::MiningSuccess(header) => {
+                                println!("(Consensus) Accepted mining result!");
 
+                                // check this result matches current payload
+                                let new_latest_payload = latest_payload.clone();
+
+                                if new_latest_payload.is_none() {
+                                    continue;
+                                }
+
+                                let payload: Payload = new_latest_payload.unwrap();
+                                if header.timestamp != payload.header.timestamp {
+                                    eprintln!("(Consensus) Latest_payload and mining results is different.");
+                                    continue;
+                                }
+
+                                let block = Block {
+                                    header: header,
+                                    body: payload.body,
+                                };
+
+                                if let Err(e) = importer.import_new_block(block.clone()) {
+                                    eprintln!("(Consensus) New Block Import failed: {:?}", e);
+                                    continue;
+                                }
+
+                                latest_payload = None;
+                                network.send(NetworkHandleMessage::BroadcastBlock(block));
+                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
+                            }
+                        }
                     }
 
                     Some(msg) = builder_events.recv() => {
                         match msg {
                             PayloadBuilderResultMessage::Payload(payload) => {
-                                println!("(Consensus) accepted payload");
+                                println!("(Consensus) Accepted payload");
                                 if payload.body.len() == 0 {
-                                    println!("(Consensus) payload with no body. Try again..");
+                                    println!("(Consensus) Payload with no body. Try again..");
 
                                     let builder_handle_cloned = builder_handle.clone();
                                     tokio::spawn(async move {
@@ -93,10 +127,9 @@ impl<DB: Database> ConsensusEngine<DB> {
                                     });
                                     continue;
                                 }
-                                dbg!(&payload);
-                                
                                 let miner_handle_cloned = miner_handle.clone();
-                                miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload));
+                                miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
+                                latest_payload = Some(payload);
                             }
                         }
                     }
@@ -104,10 +137,21 @@ impl<DB: Database> ConsensusEngine<DB> {
                     Some(msg) = rx.recv() => {
                         match msg {
                             ConsensusHandleMessage::ImportBlock(block) => {
-                                let res = importer.validate_block(block);
+                                // if this is a not succeeding block, ask for network to get new blockchain data
+                                if let Err(e) = importer.import_new_block(block) {
+                                    match e {
+                                        BlockImportError::BlockHeightError => {
+                                            eprintln!("(Consensus) Failed to import new block due to block heignt: {:?}. Try to update new datas.", e);
+                                            network.send(NetworkHandleMessage::UpdateData);
+                                        }
+                                        _ => {
+                                            eprintln!("(Consensus) Failed to import new block: {:?}", e);
+                                        }
+                                    }
+                                }
                             }
                             ConsensusHandleMessage::NewTransaction(recovered) => {
-                                // revise current payload (maybe?)
+                                // update current payload (maybe?)
                             }
                         }
                     }
@@ -116,14 +160,5 @@ impl<DB: Database> ConsensusEngine<DB> {
         });
 
         consensus_handle
-    }
-}
-
-impl<DB: Database> BlockImportable for ConsensusEngine<DB> 
-{
-    type B = Block;
-
-    fn import_block(&self, block: Self::B) -> Result<BlockValidationResult, BlockImportError> {
-        self.importer.validate_block(block)
     }
 }

@@ -30,10 +30,10 @@ pub struct Transaction {
 impl Transaction {
     pub fn encode_for_signing(&self) -> TxHash {
         let mut hasher = Sha256::new();
-        hasher.update(self.chain_id.to_string().as_bytes());
-        hasher.update(self.nonce.to_string().as_bytes());
+        hasher.update(self.chain_id.to_be_bytes());
+        hasher.update(self.nonce.to_be_bytes());
         hasher.update(self.to.get_addr());
-        hasher.update(self.fee.to_string().as_bytes());
+        hasher.update(self.fee.to_be_bytes());
         hasher.update(self.value.to_string().as_bytes());
         B256::from_slice(&hasher.finalize())
     }

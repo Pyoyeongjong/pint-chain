@@ -1,8 +1,10 @@
 use std::array::TryFromSliceError;
 
+#[derive(Debug)]
 pub enum BlockImportError {
     NoopImporter,
     ProviderError,
+    BlockHeightError
 }
 
 pub enum BlockValidatioError {
@@ -29,7 +31,7 @@ impl From<TryFromSliceError> for DecodeError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AddressError {
     FromHexError(hex::FromHexError),
     InvalidLength(usize),
@@ -46,7 +48,7 @@ pub enum SignatureError {
     InvalidParity(u64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RecoveryError {
     RecIdError,
     RecKeyError,

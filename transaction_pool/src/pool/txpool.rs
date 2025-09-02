@@ -170,6 +170,7 @@ impl AllTransaction {
         let mut replaced_tx = None;
         let mut state = TxState::new();
 
+
         if U256::from(tx.fee()) + tx.value() <= on_chain_balance {
             state.has_balance();
         } 
@@ -178,6 +179,8 @@ impl AllTransaction {
             state.has_ancestor();
         }
 
+        // let sbp: SubPool = state.clone().into();
+        // dbg!(sbp);
 
         let pool_tx = PoolInternalTransaction {
             transaction: Arc::clone(&tx),
