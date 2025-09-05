@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible};
 
 use primitives::{block::Block, transaction::Recovered, types::{Account, Address, TxHash, B256, U256}, world::World};
 
@@ -21,7 +21,7 @@ impl Executor {
     pub fn execute_transaction(&mut self, tx: &Recovered) 
     -> Result<Receipt, Infallible>{
         let mut receipt = Receipt { tx_hash: tx.hash(), fee: 0, success: true, error: None };
-        let fee = match self.state.execute_transaction(tx) {
+        receipt.fee = match self.state.execute_transaction(tx) {
             Ok(fee) => fee,
             Err(err) => {
                 receipt.success = false;
@@ -53,6 +53,10 @@ impl Executor {
                     continue;
                 }
             }
+        }
+
+        if block.header.total_fee != fee_sum {
+            return Err(ExecutionError::TotalFeeisDifferent);
         }
 
         // update mining results

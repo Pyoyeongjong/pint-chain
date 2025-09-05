@@ -17,7 +17,7 @@ impl<DB: Database> BlockImporter<DB> {
         }   
         let res = self.validate_block(&block)?;
         if res.success {
-            if let Err(e) = self.provider.import_new_block(block) {
+            if let Err(_e) = self.provider.import_new_block(block) {
                 return Err(BlockImportError::ProviderError);
             }            
         }
@@ -31,7 +31,7 @@ impl<DB: Database> BlockImporter<DB> {
         let state_provider = self.provider.latest();
         let executable_state = match state_provider.executable_state() {
             Ok(exec_state) => exec_state,
-            Err(e) => return Err(BlockImportError::ProviderError),
+            Err(_e) => return Err(BlockImportError::ProviderError),
         };
 
         let mut executor = Executor::new(executable_state);
@@ -51,7 +51,7 @@ impl<DB: Database> BlockImporter<DB> {
         Ok(result)
     }
 
-    fn validate_block_with_no_state(block: &Block) -> Result<BlockValidationResult, BlockImportError>{
+    fn validate_block_with_no_state(_block: &Block) -> Result<BlockValidationResult, BlockImportError>{
         // todo!
         Ok(BlockValidationResult {
             success: true,

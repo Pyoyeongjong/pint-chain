@@ -4,7 +4,8 @@ use primitives::{error::RecoveryError, types::TxHash};
 #[derive(Clone, Debug)]
 pub enum ExecutionError {
     StateExecutionError(StateExecutionError),
-    TransactionRecoveryError(RecoveryError)
+    TransactionRecoveryError(RecoveryError),
+    TotalFeeisDifferent,
 }
 
 #[derive(Debug)]

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use primitives::types::{Account, Address};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]

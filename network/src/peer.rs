@@ -8,13 +8,14 @@ use crate::{NetworkHandle, NetworkHandleMessage};
 
 #[derive(Debug, Clone)]
 pub struct Peer {
+    id: u64,
     addr: SocketAddr,
     tx: UnboundedSender<NetworkHandleMessage>,
 }
 
 impl Peer {
-    pub fn new(addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
-        Self { addr, tx }
+    pub fn new(id: u64, addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
+        Self { id ,addr, tx }
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
@@ -22,12 +23,24 @@ impl Peer {
             eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
         }
     }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn addr(&self) -> &SocketAddr {
+        &self.addr
+    }
+
+    pub fn update_addr(&mut self, addr: SocketAddr) {
+        self.addr = addr;
+    }
 }
 
 
 #[derive(Debug)]
 pub struct PeerList {
-    peers: Arc<RwLock<Vec<Peer>>>,
+    pub peers: Arc<RwLock<Vec<Peer>>>,
 }
 
 impl PeerList {
@@ -57,13 +70,14 @@ impl PeerList {
 }
 
 impl PeerList {
-    pub fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) {
+    pub fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) -> (Peer, u64) {
         let (tx, mut rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
         // tx is used for every componets who want to send peer msg
         // rx isolates socket
-        let new_peer = Peer::new(addr.clone(), tx);
         let mut peers = self.peers.write();
-        peers.push(new_peer);
+        let pid = peers.len();
+        let new_peer = Peer::new(pid as u64, addr.clone(), tx);
+        peers.push(new_peer.clone());
 
         let (mut read_socket, mut write_socket) = socket.into_split();
 
@@ -78,10 +92,23 @@ impl PeerList {
                         break;
                     }
                     Ok(n) => {
-                        if let Some(decoded) = NetworkHandleMessage::decode(&buf[..n], addr) {
-                            let _ = network_handle.send(decoded);
-                        } else {
-                            eprintln!("Invalid Request from Peer: {:?}", addr);
+                        println!("encoded {} data incomed", n);
+
+                        match NetworkHandleMessage::decode(&buf[..n], addr) {
+                            Ok(res) => {
+                                match res {
+                                    Some(decoded) => {
+                                        let _ = network_handle.send(decoded);
+                                    }
+                                    None =>  {
+                                        eprintln!("Invalid Request from Peer: {:?}", addr);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to decode Network handle message: {:?} from {:?}", e, addr);
+                                continue;
+                            }
                         }
                     }
                     Err(e) => {
@@ -115,6 +142,8 @@ impl PeerList {
             let mut peers = peers_ref.write();
             peers.retain(|peer| peer.addr != addr);
         });
+
+        (new_peer, pid as u64)
     }
 }
 

@@ -1,7 +1,7 @@
-use std::{net::SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 
-use primitives::{block::{Block, BlockValidationResult}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}};
-use provider::Database;
+use primitives::handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage};
+use provider::{Database, ProviderFactory};
 use tokio::{net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use transaction_pool::{identifier::TransactionOrigin, Pool};
@@ -15,6 +15,7 @@ pub mod handle;
 
 pub struct NetworkManager<DB: Database> {
     listener: TcpListener,
+    pub provider: ProviderFactory<DB>,
     networ_handle: NetworkHandle,
     from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
     pool: Pool<DB>,
@@ -24,10 +25,16 @@ pub struct NetworkManager<DB: Database> {
 }
 
 impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
-    fn start_loop(self) {
+    fn start_loop(self, is_boot_node: bool) {
         tokio::spawn(async move {
             println!("Network channel starts.");
             let mut this = self;
+
+            if !is_boot_node {
+                println!("(Network) Try to synchronize db and mem-pool.");
+                this.networ_handle.send(NetworkHandleMessage::RequestData);
+            }
+
             loop {
                 tokio::select! {
                     // New Peer
@@ -37,7 +44,9 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                             println!("(Network) Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
                         } else {
                             println!("New peer: {}", addr);
-                            this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
+                            let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
+                            peer.send(NetworkHandleMessage::Hello(pid, this.config.address, this.config.port));
+                            println!("####DBG####: Send Hello");
                         }
                     }
 
@@ -90,9 +99,78 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                                 }
                             }
 
-                            NetworkHandleMessage::UpdateData => {
-                                todo!()
+                            NetworkHandleMessage::RequestDataResponseFinished => {
+                                println!("(Network) Finished Syncronizing");
                             }
+
+                            NetworkHandleMessage::RequestDataResponse(address, port) => {
+                                println!("(Network) RequestDataResponse is occured by {} {}", address, port);
+                                let socket_addr = SocketAddr::from((address, port));
+                                if let Some(peer) = this.peers.inner().read().iter().find(|peer| {
+                                    dbg!(peer.addr(), socket_addr);
+                                    *peer.addr() == socket_addr
+                                }) {
+                                    // send block datas
+                                    let latest = this.provider.db().latest_block_number();
+                                    for i in 1..latest+1 {
+                                        match this.provider.db().get_block(i) {
+                                            Ok(block) => peer.send(NetworkHandleMessage::NewPayload(block)),
+                                            Err(e) => {
+                                                eprintln!("(Network) Failed to get block in db: {:?}", e);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    println!("(Network) Block Sync Ok! {} {}", address, port);
+                                } else {
+                                    println!("(Network) Can't find peer! {} {}", address, port);
+                                }
+                            }
+                            // request db, pool data to
+                            NetworkHandleMessage::RequestData => {
+                                if this.peers.len() == 0 {
+                                    println!("(Network) Can't find peer.");
+                                    continue;
+                                }
+                                let peer = &this.peers.inner().read()[0];
+                                peer.send(NetworkHandleMessage::RequestDataResponse(this.config.address, this.config.port));
+                                println!("(Network) Requested Data.");
+                            }
+                            NetworkHandleMessage::HandShake(pid, address, port) => {
+                                let socket_addr = SocketAddr::from((address, port));
+                                let mut binding = this.peers.inner().write();
+                                let peer = match binding.iter_mut().find(|peer| {
+                                    dbg!(peer.id(), pid);
+                                    peer.id() == pid
+                                }) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        eprintln!("(Network) Handshake: Can't find peer");
+                                        continue;
+                                    }
+                                };
+                                peer.update_addr(socket_addr);
+                
+                                println!("(Network) Handshake completed with {:?}", socket_addr);
+                            }
+
+                            NetworkHandleMessage::Hello(pid, address, port) => {
+                                dbg!(pid);
+                                let socket_addr = SocketAddr::from((address, port));
+                                let binding = this.peers.inner().read();
+                                let peer = match binding.iter().find(|peer| {
+                                    *peer.addr() == socket_addr
+                                }) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        eprintln!("(Network) Hello: Can't find peer");
+                                        continue;
+                                    }
+                                };
+                                peer.send(NetworkHandleMessage::HandShake(pid, this.config.address, this.config.port));
+                                println!("####DBG####: Send HandShake");
+                            }
+
                         }
                     }
                 }
@@ -100,7 +178,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
         });
     }
 
-    pub async fn connect_with_boot_node(&self, boot_node: BootNode) {
+    pub async fn connect_with_boot_node(&self, ip_addr: IpAddr, port: u16, boot_node: &BootNode) {
         if boot_node.is_boot_node() {
             return;
         }
@@ -109,7 +187,8 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
         match TcpStream::connect(addr).await {
             Ok(socket) => {
                 println!("Connected to boot node: {}", addr);
-                self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
+                let (peer , pid) = self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
+                peer.send(NetworkHandleMessage::HandShake(pid, ip_addr, port));
             }
             Err(e) => {
                 eprintln!("Failed to connect to the boot node {}: {:?}", addr, e);

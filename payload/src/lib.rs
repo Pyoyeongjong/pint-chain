@@ -1,13 +1,13 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use primitives::{block::{Payload, PayloadHeader}, handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage}, merkle::calculate_merkle_root, types::{Address, U256}};
+use primitives::{block::{Payload, PayloadHeader}, handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage}, merkle::calculate_merkle_root,types::{Address, U256}};
 use provider::{executor::Executor, Database, ProviderFactory};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use transaction_pool::Pool;
 
 use crate::{builder::{BuildArguments}, error::PayloadBuilderError, handle::PayloadBuilderHandle};
 
-pub mod handle;
+pub mod handle; 
 pub mod error;
 pub mod builder;
 
@@ -64,7 +64,7 @@ impl<DB: Database> PayloadBuilder<DB> {
                                         };
                                     }
                                     Err(e) => {
-                                        
+                                        eprintln!("(BuildPayload) Failed to make new payload {:?}", e);
                                     }
                                 }
                                 
@@ -118,7 +118,7 @@ async fn default_paylod<DB: Database>(
                 }
                 count += 1;
             }
-            Err(e) => {}
+            Err(_e) => {}
         }
     }
 
@@ -126,7 +126,6 @@ async fn default_paylod<DB: Database>(
     let tx_hashes = body.iter().map(|tx| tx.hash).collect();
     let transaction_root = calculate_merkle_root(tx_hashes);
     let state_root = executor.calculate_state_root();
-
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs();
 
     let payload_header = PayloadHeader {
@@ -137,6 +136,7 @@ async fn default_paylod<DB: Database>(
         difficulty: attributes.next_difficulty,
         height: next_height,
         timestamp,
+        total_fee
     };
 
     let payload = Payload {

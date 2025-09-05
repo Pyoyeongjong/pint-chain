@@ -1,4 +1,4 @@
-use primitives::{transaction::{Recovered, SignedTransaction, Tx}, types::{TxHash, U256}};
+use primitives::{transaction::{Recovered, Tx}, types::{TxHash, U256}};
 
 use crate::identifier::{SenderId, TransactionId, TransactionOrigin};
 

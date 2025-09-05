@@ -10,11 +10,11 @@ use transaction_pool::Pool;
 use crate::{configs::{BlockConfig, ExecConfig, PoolConfig, RpcConfig}, error::NodeLaunchError, Node};
 
 pub struct LaunchContext {
-    block_config: BlockConfig,
-    pool_config: PoolConfig,
-    network_config: NetworkConfig,
-    rpc_config: RpcConfig,
-    exec_config: ExecConfig,
+    pub block_config: BlockConfig,
+    pub pool_config: PoolConfig,
+    pub network_config: NetworkConfig,
+    pub rpc_config: RpcConfig,
+    pub exec_config: ExecConfig,
 }
 
 impl LaunchContext {
@@ -33,7 +33,7 @@ impl LaunchContext {
     pub async fn launch(self) -> Result<Node<Arc<InMemoryDB>>, NodeLaunchError> {
         let Self {network_config, block_config,..} = self;
         // Build Provider
-        let db = Arc::new(InMemoryDB::genesis_block());
+        let db = Arc::new(InMemoryDB::genesis_state());
         let provider = ProviderFactory::new(db);
         // Build Pool
         let pool = Pool::new(provider.clone());
@@ -41,7 +41,7 @@ impl LaunchContext {
         let builder = PayloadBuilder::new(block_config.miner_address, provider.clone(), pool.clone());
         let (builder_handle, builder_rx) = builder.start_builder();
         // Build Network
-        let network_handle = NetworkBuilder::start_network(pool.clone(), network_config).await?;
+        let network_handle = NetworkBuilder::start_network(pool.clone(), provider.clone(), network_config).await?;
         // Build Miner
         let (miner_handle, miner_rx) = Miner::build_miner();
         // Build Consensus

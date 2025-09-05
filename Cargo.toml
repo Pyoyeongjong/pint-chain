@@ -18,6 +18,8 @@ network = { path = "network" }
 consensus = { path = "consensus" }
 node = { path = "node" }
 
+serde_json = { version = "1.0.140" }
+serde = { version = "1.0.128", features = ["derive"] }
 tokio = { version = "1.0.7", features = ["full"] }
 tokio-stream = "0.1.17"
 parking_lot = { version =  "0.12.4" }

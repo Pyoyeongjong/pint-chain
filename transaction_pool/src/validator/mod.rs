@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use primitives::{transaction::{Recovered, Tx}, types::{TxHash, U256}};
+use primitives::{transaction::{Recovered, Tx}, types::{TxHash, COINBASE_ADDR, U256}};
 use provider::{state::State, Database, Provider, ProviderFactory};
 
 use crate::{error::InvalidPoolTransactionError, identifier::{TransactionId, TransactionOrigin}, validator::validtx::ValidPoolTransaction};
@@ -67,6 +67,13 @@ impl<DB: Database> ValidatorInner<DB> {
             });
         }
 
+        if transaction.signer() == COINBASE_ADDR {
+            return Err(TransactionValidationOutcome::Invalid{
+                transaction: transaction, 
+                error: InvalidPoolTransactionError::UsingCoinbaseAddr
+            });
+        }
+
         Ok(transaction)
     }
 
@@ -74,12 +81,10 @@ impl<DB: Database> ValidatorInner<DB> {
     -> TransactionValidationOutcome {
         let account = match state.basic_account(transaction.signer()) {
             Ok(account) => account.unwrap_or_default(),
-            Err(err) => {
+            Err(_err) => {
                 return TransactionValidationOutcome::UnexpectedError(transaction.hash());
             }
         };
-
-        let signer_hex = transaction.signer().get_addr_hex();
 
         // Checks nonce >= on_chain_node
         if transaction.nonce() < account.nonce {
@@ -132,7 +137,7 @@ impl TransactionValidationOutcome {
 
 #[cfg(test)]
 mod tests {
-    use database::db::{self, InMemoryDB};
+    use database::db::InMemoryDB;
     use primitives::{transaction::SignedTransaction, types::{Account, U256}};
 
     use crate::identifier::TransactionOrigin;

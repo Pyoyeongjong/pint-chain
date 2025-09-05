@@ -1,9 +1,9 @@
-use std::{collections::{BTreeMap, HashMap, HashSet}, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use primitives::{block::Block, merkle::calculate_merkle_root, transaction::{self, Recovered, SignedTransaction, Tx}, types::{Account, Address, TxHash, B256, U256}, world::World};
+use primitives::{merkle::calculate_merkle_root, transaction::{Recovered, Tx}, types::{Account, Address, B256, U256}, world::World};
 use sha2::{Digest, Sha256};
 
-use crate::{error::{StateExecutionError, TxExecutionError}, executor::Receipt};
+use crate::error::{StateExecutionError, TxExecutionError};
 
 
 #[derive(Debug)]

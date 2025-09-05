@@ -1,8 +1,7 @@
-use std::ops::Add;
-
 // This project use alloy_primitives in only this file.
 pub use alloy_primitives::{B256, U256};
 use rand::Rng;
+use serde::Serialize;
 
 use crate::error::AddressError;
 
@@ -15,6 +14,7 @@ const ADDR_LEN: usize = 20;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Address([u8; ADDR_LEN]);
+pub const COINBASE_ADDR: Address = Address([0u8; 20]);
 
 impl Address {
     pub fn from_byte(address: [u8; 20]) -> Self {
@@ -50,8 +50,7 @@ impl Address {
 
 impl Default for Address {
     fn default() -> Self {
-        let addr = [0u8; 20];
-        Self::from_byte(addr)
+        COINBASE_ADDR
     }
 }
 
@@ -62,6 +61,13 @@ pub struct Account {
 }
 
 impl Account {
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut res = Vec::new();
+        res.extend_from_slice(&self.nonce().to_be_bytes());
+        res.extend_from_slice(&self.balance().to_be_bytes::<32>());
+        res
+    }
 
     pub fn new(nonce: u64, balance: U256) -> Self {
         Self { nonce, balance }

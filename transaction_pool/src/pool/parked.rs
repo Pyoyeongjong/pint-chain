@@ -44,3 +44,9 @@ pub struct ParkedTransaction {
     submission_id: u64,
     transaction: Arc<ValidPoolTransaction>,
 }
+
+impl ParkedTransaction {
+    pub fn id(&self) -> u64 {
+        self.submission_id
+    }
+}

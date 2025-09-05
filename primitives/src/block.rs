@@ -1,12 +1,11 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use core::hash;
-
+use alloy_primitives::U256;
 use sha2::{Digest, Sha256};
 
-use crate::error::{BlockImportError, BlockValidatioError};
-use crate::transaction::Recovered;
+use crate::error::{BlockValidatioError, DecodeError};
 use crate::{transaction::SignedTransaction, types::BlockHash};
-use crate::types::{Address, B256};
+use crate::types::{Address, B256, COINBASE_ADDR};
 
 /// Block hash
 #[derive(Debug, Default, Clone)]
@@ -19,20 +18,51 @@ pub struct Header {
     pub nonce: u64, // 8
     pub difficulty: u32, // 4
     pub height: u64, // 8
+    pub total_fee: U256, // 32
 }
 
 impl Header {
+
+    pub fn genesis_header() -> Self {
+        Self {
+            previous_hash: Default::default(),
+            transaction_root: Default::default(),
+            state_root: Default::default(),
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs(),
+            proposer: COINBASE_ADDR,
+            nonce: 0,
+            difficulty: 0,
+            height: 0,
+            total_fee: U256::ZERO,
+        }
+    }
+
     pub fn encode(&self) -> Vec<u8> {
-        let mut raw = [0u8; 144];
-        raw[0..32].copy_from_slice(&self.previous_hash.to_string().as_bytes());
-        raw[32..64].copy_from_slice(&self.transaction_root.to_string().as_bytes());
-        raw[64..96].copy_from_slice(&self.state_root.to_string().as_bytes());
+        let mut raw = [0u8; 176];
+        raw[0..32].copy_from_slice(&self.previous_hash.0);
+        raw[32..64].copy_from_slice(&self.transaction_root.0);
+        raw[64..96].copy_from_slice(&self.state_root.0);
         raw[96..104].copy_from_slice(&self.timestamp.to_be_bytes());
         raw[104..124].copy_from_slice(&self.proposer.get_addr());
         raw[124..132].copy_from_slice(&self.nonce.to_be_bytes());
         raw[132..136].copy_from_slice(&self.difficulty.to_be_bytes());
         raw[136..144].copy_from_slice(&self.height.to_be_bytes());
+        raw[144..176].copy_from_slice(&self.total_fee.to_be_bytes::<32>());
         raw.to_vec()
+    }
+
+    pub fn decode(buf: [u8; 176]) -> Self {
+        Self {
+            previous_hash: B256::from_slice(&buf[0..32]),
+            transaction_root: B256::from_slice(&buf[32..64]),
+            state_root: B256::from_slice(&buf[64..96]),
+            timestamp: u64::from_be_bytes(buf[96..104].try_into().unwrap()),
+            proposer: Address::from_byte(buf[104..124].try_into().unwrap()),
+            nonce: u64::from_be_bytes(buf[124..132].try_into().unwrap()),
+            difficulty: u32::from_be_bytes(buf[132..136].try_into().unwrap()),
+            height: u64::from_be_bytes(buf[136..144].try_into().unwrap()),
+            total_fee: U256::from_be_slice(&buf[144..176]),
+        }
     }
 
     pub fn calculate_hash(&self) -> BlockHash {
@@ -45,6 +75,7 @@ impl Header {
         hasher.update(self.difficulty.to_be_bytes());
         hasher.update(self.height.to_be_bytes());
         hasher.update(self.nonce.to_be_bytes());
+        hasher.update(self.total_fee.to_be_bytes::<32>());
         B256::from_slice(&hasher.finalize())
     }
 }
@@ -57,6 +88,14 @@ pub struct Block{
 }
 
 impl Block {
+
+    pub fn genesis_block() -> Self {
+        let header = Header::genesis_header();
+        Self {
+            header,
+            body: Vec::new()
+        }
+    }
     pub fn encode(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::new();
         let header = self.header.encode();
@@ -68,6 +107,28 @@ impl Block {
             res = [res, encoded].concat();
         }
         res
+    }
+
+    pub fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
+        if buf.len() < 176 {
+            return Err(DecodeError::TooShortRawData(buf.to_vec()));
+        }
+
+        let (header_raw, mut body_raw) = buf.split_at(176);
+        let header = Header::decode(header_raw.try_into().unwrap());
+        let mut body = Vec::new();
+
+        while body_raw.len() >= 149 {
+            let (tx_raw, remains) = body_raw.split_at(149);
+            let (signed, _) = SignedTransaction::decode(&tx_raw.to_vec()).unwrap();
+            body_raw = remains;
+            body.push(signed);
+        }
+
+        
+        Ok(Self {
+            header, body
+        })
     }
 
     pub fn header(&self) -> &Header{
@@ -85,6 +146,7 @@ pub struct PayloadHeader {
     pub difficulty: u32, 
     pub timestamp: u64,
     pub height: u64, 
+    pub total_fee: U256,
 }
 
 impl PayloadHeader {
@@ -97,7 +159,8 @@ impl PayloadHeader {
             proposer: self.proposer,
             nonce,
             difficulty: self.difficulty,
-            height: self.height
+            height: self.height,
+            total_fee: self.total_fee
         }
     }
 }

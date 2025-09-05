@@ -4,7 +4,7 @@ use primitives::handle::{ConsensusHandleMessage, Handle};
 use tokio::sync::mpsc::UnboundedSender;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConsensusHandle {
     inner: Arc<ConsensusInner>,
 }

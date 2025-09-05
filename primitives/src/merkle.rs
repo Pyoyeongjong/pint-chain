@@ -1,5 +1,3 @@
-use core::hash;
-
 use alloy_primitives::{B256, U256};
 use sha2::{Digest, Sha256};
 

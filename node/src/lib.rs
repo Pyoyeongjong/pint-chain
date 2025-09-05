@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::State, routing::post, Json, Router};
 use network::{builder::NetworkConfig};
-use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, transaction::SignedTransaction};
+use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, transaction::SignedTransaction, types::Address};
 use provider::{Database, ProviderFactory};
 use serde_json::json;
 use tokio::net::TcpListener;
@@ -31,13 +31,13 @@ impl<DB: Database> Node<DB> {
             Ok(recovered) => {
                 recovered
             }
-            Err(e) => {
+            Err(_e) => {
                 eprintln!("Failed to handle tx: {:?}", tx_hash);
                 return;
             }
         };
 
-        if let Err(e) = self.pool.add_transaction(TransactionOrigin::External, recovered) {
+        if let Err(_e) = self.pool.add_transaction(TransactionOrigin::External, recovered) {
             eprintln!("Failed to handle tx: {:?}", tx_hash);
         }
     }
@@ -75,45 +75,78 @@ impl<DB: Database> Node<DB> {
 }
 
 pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
-    let mut result = json!("method not found");
+
     let mut success = false;  
     match req.method.as_str() {
         "chain_name" => {
-            result = json!("Pint");
+            let result = json!("Pint");
+            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
         }
         "local_transaction" => {
+            let result;
             if let Some(raw) = req.params[0].as_str() {
-                dbg!(raw);
                 let data = match hex::decode(raw) {
                     Ok(data) => data,
-                    Err(e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Hex Decode Error"), id: req.id })
+                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Hex Decode Error"), id: req.id })
                 };
                 let signed = match SignedTransaction::decode(&data) {
                     Ok((signed, _)) => signed,
-                    Err(e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Decode Error"), id: req.id })
+                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Decode Error"), id: req.id })
                 };
                 let origin = TransactionOrigin::Local;
                 let recovered = match signed.into_recovered() {
                     Ok(recovered) => recovered,
-                    Err(e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Recovery Error"), id: req.id })
+                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Recovery Error"), id: req.id })
                 };
                 let tx_hash = match node.pool.add_transaction(origin, recovered) {
                     Ok(tx_hash) => tx_hash,
-                    Err(e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error"), id: req.id })
+                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error"), id: req.id })
                 };
 
                 // broadcast to peer!
-
                 success = true;
                 result = json!(tx_hash.to_string());
             } else {
                 result = json!("There is no new transaction");
             }
+            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+        }
+        "account" => {
+            let mut result = json!("Failed");
+            if let Some(raw) = req.params[0].as_str() {
+                let address = match Address::from_hex(raw.to_string()){
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        eprintln!("Failed to get account info: {:?}", e);
+                        result = json!("Wrong address");
+                        return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id });
+                    }
+                };
+
+                match node.provider.db().basic(&address) {
+                    Ok(account) => {
+                        result = match account {
+                            Some(account) => {
+                                let string = format!("{} {}", account.nonce(), account.balance());
+                                json!(string)
+                            }
+                            None => json!("No account info"),
+                        };
+                    }
+                    Err(_e) => {
+
+                    }
+                };
+            } 
+            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+        }
+        "block_height" => {
+            let result = json!(node.provider.block_number());
+            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
         }
         _ => {
-            result = json!("Wrong Requirement");
+            let result = json!("Wrong Requirement");
+            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
         }
     }
-
-    Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
 }

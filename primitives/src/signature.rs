@@ -1,12 +1,8 @@
-use core::prelude::v1;
-
-use alloy_primitives::bytes;
 use k256::ecdsa::RecoveryId;
-
 use crate::{error::{DecodeError, SignatureError}, types::U256};
 
 /// ESDCA Signature
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Signature {
     pub y_parity: bool,
     pub r: U256,
@@ -14,6 +10,14 @@ pub struct Signature {
 }
 
 impl Signature {
+
+    pub const fn raw_len() -> usize {
+        1 + 32 + 32
+    }
+
+    pub fn dummy() -> Self {
+        Self::default()
+    }
 
     pub fn y_parity(&self) -> bool {
         self.y_parity

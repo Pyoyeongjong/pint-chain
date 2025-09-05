@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use primitives::handle::NetworkHandleMessage;
-use provider::Database;
+use provider::{Database, ProviderFactory};
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use transaction_pool::Pool;
@@ -11,7 +11,7 @@ use crate::{error::NetworkStartError, peer::PeerList, NetworkHandle, NetworkMana
 pub struct NetworkBuilder;
 
 impl NetworkBuilder {
-    pub async fn start_network<DB: Database + Send + Sync + 'static>(pool: Pool<DB>, cfg: NetworkConfig) -> Result<NetworkHandle, NetworkStartError> {
+    pub async fn start_network<DB: Database + Send + Sync + 'static>(pool: Pool<DB>, provider: ProviderFactory<DB>, cfg: NetworkConfig) -> Result<NetworkHandle, NetworkStartError> {
         // Server Binding
         let listener = match TcpListener::bind((cfg.address, cfg.port)).await {
             Ok(listner) => listner,
@@ -23,6 +23,7 @@ impl NetworkBuilder {
 
         let network_manager = NetworkManager {
             listener,
+            provider,
             networ_handle: network_handle.clone(),
             from_handle_rx: rx_stream,
             pool,
@@ -33,9 +34,9 @@ impl NetworkBuilder {
 
         // Finding peer from Boot Node
         // Initially, I implemented function that connects only boot node and never fails.
-        network_manager.connect_with_boot_node(cfg.boot_node).await;
+        network_manager.connect_with_boot_node(cfg.address, cfg.port, &cfg.boot_node).await;
         // Network loop Start
-        network_manager.start_loop();
+        network_manager.start_loop(cfg.boot_node.is_boot_node());
 
         Ok(network_handle)
     }
@@ -64,7 +65,7 @@ impl NetworkConfig {
 
 #[derive(Clone, Debug)]
 pub struct BootNode {
-    is_boot_node: bool,
+    pub is_boot_node: bool,
     address: IpAddr,
     port: u16,
 }

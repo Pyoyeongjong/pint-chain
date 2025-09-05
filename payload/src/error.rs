@@ -1,5 +1,6 @@
 use provider::error::ProviderError;
 
+#[derive(Debug)]
 pub enum PayloadBuilderError {
     ProviderError(ProviderError)
 }

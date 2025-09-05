@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use k256::ecdsa::RecoveryId;
 use k256::ecdsa::VerifyingKey;
 use k256::EncodedPoint;
@@ -28,6 +26,10 @@ pub struct Transaction {
 }
 
 impl Transaction {
+
+    pub const fn raw_len() -> usize {
+        8 + 16 + 20 + 16 + 32
+    }
     pub fn encode_for_signing(&self) -> TxHash {
         let mut hasher = Sha256::new();
         hasher.update(self.chain_id.to_be_bytes());
@@ -119,7 +121,7 @@ impl SignedTransaction {
 
     pub fn encode(&self) -> Vec<u8> {
         let tx_arr = self.tx.encode();
-        let sig_arr = self.signature.as_bytes().to_vec();
+        let sig_arr: Vec<u8> = self.signature.as_bytes().to_vec();
         [tx_arr, sig_arr].concat()
     }
 
@@ -127,15 +129,12 @@ impl SignedTransaction {
         let size = raw.len();
         let (tx, tx_size) = Transaction::raw_decode(&raw)?;
 
-        if size < tx_size + 65 {
+        const SIG_RAW_LEN: usize = Signature::raw_len();
+        if size < tx_size + SIG_RAW_LEN {
             return Err(DecodeError::TooShortRawData(raw.clone()));
         }
 
-        let sig_raw: [u8; 65] = match raw[tx_size..tx_size + 65].try_into() {
-            Ok(arr) => arr,
-            Err(err) => return Err(DecodeError::TryFromSliceError(err)),
-        };
-
+        let sig_raw: [u8; SIG_RAW_LEN] = raw[tx_size..tx_size + SIG_RAW_LEN].try_into()?;
         let signature = Signature::raw_decode(&sig_raw)?;
         let signed = tx.into_signed(signature);
         Ok((signed, size))
@@ -291,4 +290,3 @@ mod tests {
         assert_eq!(sender, recovered_sender);
     }
 }
-

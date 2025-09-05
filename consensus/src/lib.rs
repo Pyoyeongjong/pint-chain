@@ -55,12 +55,14 @@ impl<DB: Database> ConsensusEngine<DB> {
         let (tx, mut rx) = mpsc::unbounded_channel::<ConsensusHandleMessage>();
 
         let consensus_handle = ConsensusHandle::new(tx);
+        let consensus_handle_cloned = consensus_handle.clone();
 
         tokio::spawn(async move {
             println!("Consensus channel starts.");
+            let consensus_handle = consensus_handle_cloned;
             let Self { 
                 importer, 
-                pool, 
+                pool: _pool, 
                 network, 
                 builder_handle, 
                 mut builder_events, 
@@ -101,14 +103,7 @@ impl<DB: Database> ConsensusEngine<DB> {
                                     body: payload.body,
                                 };
 
-                                if let Err(e) = importer.import_new_block(block.clone()) {
-                                    eprintln!("(Consensus) New Block Import failed: {:?}", e);
-                                    continue;
-                                }
-
-                                latest_payload = None;
-                                network.send(NetworkHandleMessage::BroadcastBlock(block));
-                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
+                                consensus_handle.send(ConsensusHandleMessage::ImportBlock(block));
                             }
                         }
                     }
@@ -122,7 +117,7 @@ impl<DB: Database> ConsensusEngine<DB> {
 
                                     let builder_handle_cloned = builder_handle.clone();
                                     tokio::spawn(async move {
-                                        tokio::time::sleep(Duration::from_secs(1)).await;
+                                        tokio::time::sleep(Duration::from_secs(10)).await;
                                         builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
                                     });
                                     continue;
@@ -138,17 +133,21 @@ impl<DB: Database> ConsensusEngine<DB> {
                         match msg {
                             ConsensusHandleMessage::ImportBlock(block) => {
                                 // if this is a not succeeding block, ask for network to get new blockchain data
-                                if let Err(e) = importer.import_new_block(block) {
+                                if let Err(e) = importer.import_new_block(block.clone()) {
                                     match e {
                                         BlockImportError::BlockHeightError => {
                                             eprintln!("(Consensus) Failed to import new block due to block heignt: {:?}. Try to update new datas.", e);
-                                            network.send(NetworkHandleMessage::UpdateData);
+                                            network.send(NetworkHandleMessage::RequestData);
+                                            continue;
                                         }
                                         _ => {
                                             eprintln!("(Consensus) Failed to import new block: {:?}", e);
                                         }
                                     }
                                 }
+                                latest_payload = None;
+                                network.send(NetworkHandleMessage::BroadcastBlock(block));
+                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
                             ConsensusHandleMessage::NewTransaction(recovered) => {
                                 // update current payload (maybe?)

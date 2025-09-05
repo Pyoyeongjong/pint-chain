@@ -11,4 +11,8 @@ impl World {
     pub fn calculate_hash(&self) -> B256 {
         B256::default()
     }
+
+    pub fn encode(&self) -> Vec<u8> {
+        Vec::with_capacity(32)
+    }
 }

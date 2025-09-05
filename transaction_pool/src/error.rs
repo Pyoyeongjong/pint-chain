@@ -41,4 +41,5 @@ pub enum InsertErr {
 pub enum InvalidPoolTransactionError {
     NotEnoughFeeError,
     NonceIsNotConsistent,
+    UsingCoinbaseAddr,
 }

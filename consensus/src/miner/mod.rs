@@ -2,8 +2,8 @@ pub mod handle;
 
 use std::sync::{atomic::AtomicU64, Arc};
 
-use primitives::{handle::{MinerHandleMessage, MinerResultMessage}, types::{B256, U256}};
-use sha2::{digest::consts::U25, Digest, Sha256};
+use primitives::{handle::{MinerHandleMessage, MinerResultMessage}, types::{B256}};
+use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::miner::handle::MinerHandle;

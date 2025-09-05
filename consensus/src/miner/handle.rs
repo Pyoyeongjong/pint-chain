@@ -20,7 +20,7 @@ impl Handle for MinerHandle {
     type Msg = MinerHandleMessage;
 
     fn send(&self, msg: Self::Msg) {
-        if let Err(e) = self.inner.to_manager_tx.send(msg) {
+        if let Err(_e) = self.inner.to_manager_tx.send(msg) {
             eprintln!("Failed to send MinerHandleMessage");
         }
     }

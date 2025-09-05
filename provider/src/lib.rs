@@ -19,12 +19,16 @@ impl<DB: Database + Clone> ProviderFactory<DB> {
         Self { db }
     }
 
+    pub fn db(&self) -> &DB {
+        &self.db
+    }
+
     pub fn block_number(&self) -> u64 {
-        self.db.block_number()
+        self.db.latest_block_number()
     }
 
     pub fn latest(&self) -> Provider<DB> {
-        let block_no = self.db.block_number();
+        let block_no = self.db.latest_block_number();
         self.state_by_block_number(block_no)
     }
 
@@ -57,7 +61,7 @@ impl<DB: Database + Clone> ProviderFactory<DB> {
         };
 
         // update results
-        self.db.update(new_account_state, new_field_state);
+        self.db.update(new_account_state, new_field_state, block);
         Ok(())
     }
 }
