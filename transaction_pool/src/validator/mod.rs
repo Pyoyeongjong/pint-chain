@@ -40,7 +40,7 @@ impl<DB: Database> ValidatorInner<DB> {
         }
     }
 
-        // maybe_state: specific state
+    // maybe_state: specific state
     // if maybe_state is none, validates tx according to latest block
     pub fn validate_one(&self, origin: TransactionOrigin, transaction: Recovered, mut maybe_state: Option<Provider<DB>>) 
     -> TransactionValidationOutcome{

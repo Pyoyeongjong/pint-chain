@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use primitives::{transaction::Recovered, types::TxHash};
+use primitives::{block::Block, transaction::Recovered, types::TxHash};
 use provider::{Database, ProviderFactory};
 
 use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::{best::BestTransactions, PoolInner}, validator::TransactionValidationOutcome};
@@ -21,6 +21,14 @@ impl<DB: Database> Pool<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
             pool: Arc::new(PoolInner::new(provider)),
+        }
+    }
+
+    pub fn remove_block_transactions(&self, block: &Block) {
+        let tx_hashes: Vec<TxHash> = block.body.iter().map(|tx| tx.hash).collect(); 
+        let mut pool = self.pool.pool().write();
+        for hash in tx_hashes {
+            pool.remove_transaction_by_hash(hash);
         }
     }
 
@@ -57,6 +65,11 @@ impl<DB: Database> Pool<DB> {
 
     pub fn best_transactions(&self) -> BestTransactions {
         self.pool.best_transactions()
+    }
+
+    pub fn reorganize_pool(&self) {
+        self.pool.reorganize_pool();
+        self.print_pool();
     }
 
     // for dbg!

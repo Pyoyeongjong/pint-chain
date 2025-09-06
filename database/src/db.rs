@@ -93,7 +93,7 @@ impl Database for Arc<InMemoryDB> {
     fn basic(&self, address: &Address) -> Result<Option<Account>, Box<dyn std::error::Error>> {
         let mut state = self.accounts.write();
 
-        let latest_accounts = state.entry(self.latest_block_number()).or_default();
+        let latest_accounts: &mut HashMap<Address, Account> = state.entry(self.latest_block_number()).or_default();
         Ok(latest_accounts.get(address).or(None).cloned())
     }
     
@@ -120,6 +120,13 @@ impl Database for Arc<InMemoryDB> {
         } else {
             Err(DatabaseError::DataNotExists)
         }
+    }
+
+    fn get_latest_block_header(&self) -> primitives::block::Header {
+        let blockchain = self.blockchain.read();
+        let latest = self.latest_block_number();
+        let block = blockchain.get(&latest).unwrap();
+        block.header.clone()
     }
     
     fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World, block: Block) {

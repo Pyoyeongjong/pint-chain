@@ -21,6 +21,7 @@ impl<DB: Database> BlockImporter<DB> {
                 return Err(BlockImportError::ProviderError);
             }            
         }
+
         Ok(())
     }
 

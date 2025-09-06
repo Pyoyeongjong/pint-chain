@@ -62,7 +62,7 @@ impl<DB: Database> ConsensusEngine<DB> {
             let consensus_handle = consensus_handle_cloned;
             let Self { 
                 importer, 
-                pool: _pool, 
+                pool, 
                 network, 
                 builder_handle, 
                 mut builder_events, 
@@ -145,6 +145,8 @@ impl<DB: Database> ConsensusEngine<DB> {
                                         }
                                     }
                                 }
+                                pool.remove_block_transactions(&block);
+                                pool.reorganize_pool();
                                 latest_payload = None;
                                 network.send(NetworkHandleMessage::BroadcastBlock(block));
                                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);

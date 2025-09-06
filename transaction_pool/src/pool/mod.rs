@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use parking_lot::RwLock;
 use provider::{Database, ProviderFactory};
 
-use crate::{pool::{best::BestTransactions, txpool::TxPool}, validator::Validator};
+use crate::{identifier::TransactionId, pool::{best::BestTransactions, txpool::TxPool}, validator::{validtx::ValidPoolTransaction, TransactionValidationOutcome, Validator}};
 
 pub mod txpool;
 pub mod pending;
@@ -33,6 +35,31 @@ impl<DB: Database> PoolInner<DB> {
 
     pub fn best_transactions(&self) -> BestTransactions {
         self.pool().read().best_transactions()
+    }
+
+    pub fn reorganize_pool(&self) {
+
+        // 1. bring all txs in parked pool
+        let mut pool = self.pool().write();
+        let parked_txs: Vec<(TransactionId, Arc<ValidPoolTransaction>)> = pool.parked_pool.transactions()
+            .iter()
+            .map(|(tid, tx)| (*tid, tx.tx_clone()))
+            .collect();
+
+
+        for (tid, tx) in parked_txs.iter() {
+            match self.validator().validate_transaction(tx.origin.clone(), tx.transaction.clone()) {
+                TransactionValidationOutcome::Valid { transaction: _, balance, nonce } => {
+                    pool.reorg_transaction(tid, balance, nonce);
+                }
+                TransactionValidationOutcome::Invalid { transaction: _, error: _ } => {
+                    pool.remove_transaction_by_id(tid);
+                }
+                TransactionValidationOutcome::UnexpectedError(_tx_hash) => {
+
+                }
+            }
+        }
     }
 }
 

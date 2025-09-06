@@ -2,7 +2,7 @@ use std::{collections::{btree_map::Entry, BTreeMap, HashMap}, sync::Arc};
 
 use primitives::{transaction::Tx, types::{TxHash, U256}};
 
-use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier::{SenderId, SenderInfo, TransactionId}, pool::{best::BestTransactions, parked::ParkedPool, pending::PendingPool, state::{SubPool, TxState}}, validator::validtx::ValidPoolTransaction};
+use crate::{error::{InsertErr, PoolError, PoolErrorKind, PoolResult}, identifier::{SenderId, SenderInfo, TransactionId}, pool::{best::BestTransactions, parked::{ParkedPool}, pending::PendingPool, state::{SubPool, TxState}}, validator::validtx::ValidPoolTransaction};
 
 
 #[derive(Debug)]
@@ -23,8 +23,38 @@ impl TxPool {
         }
     }
 
-    pub fn contains(&self, tx_hash: &TxHash) -> bool {
-        self.all_transaction.contains(&tx_hash)
+    pub fn contains_by_hash(&self, tx_hash: &TxHash) -> bool {
+        self.all_transaction.contains_by_hash(&tx_hash)
+    }
+
+    pub fn contains_by_id(&self, tid: &TransactionId) -> bool {
+        self.all_transaction.contains_by_id(tid)
+    }
+
+    pub fn reorg_transaction(&mut self, tx_id: &TransactionId, on_chain_balance: U256, on_chain_nonce: u64) {
+
+        if !self.contains_by_id(tx_id) {
+            return;
+        }
+        
+        let pool_transaction = self.all_transaction.get_tx_by_id(tx_id).unwrap();
+
+        let transaction = pool_transaction.transaction.clone();
+
+        // update sender info
+        self.sender_info
+            .entry(transaction.sender())
+            .or_default()
+            .update(on_chain_nonce, on_chain_balance);
+
+        // let tx_hash = transaction.hash();
+        let new_state = TxState::new_with(&transaction, on_chain_balance, on_chain_nonce);
+        let sub_pool: SubPool = new_state.into();
+
+        if sub_pool.is_pending() {
+            self.parked_pool.remove_transaction(tx_id);
+            self.pending_pool.add_transaction(transaction);
+        }
     }
 
     pub fn add_transaction(
@@ -34,7 +64,7 @@ impl TxPool {
         on_chain_nonce: u64,
     ) -> PoolResult<TxHash> {
         // check whether new transaction is already inserted or not
-        if self.contains(&transaction.hash()) {
+        if self.contains_by_hash(&transaction.hash()) {
             return Err(PoolError::new(
                 transaction.hash(),
                 PoolErrorKind::AlreadyImported,
@@ -98,11 +128,16 @@ impl TxPool {
         }
     }
 
-    pub fn remove_transaction(
+    pub fn remove_transaction_by_id(
         &mut self,
         id: &TransactionId,
     ) -> Option<Arc<ValidPoolTransaction>> {
-        let (tx, subpool) = self.all_transaction.remove_transaction(id)?;
+        let (tx, subpool) = self.all_transaction.remove_transaction_by_id(id)?;
+        self.remove_from_subpool(tx.tid(), subpool)
+    }
+
+    pub fn remove_transaction_by_hash(&mut self, hash: TxHash) -> Option<Arc<ValidPoolTransaction>> {
+        let (tx, subpool) = self.all_transaction.remove_transaction_by_hash(hash)?;
         self.remove_from_subpool(tx.tid(), subpool)
     }
 
@@ -116,8 +151,8 @@ impl TxPool {
             SubPool::Parked => self.parked_pool.remove_transaction(tx_id),
         };
 
-        if let Some(ref tx) = tx {
-            println!("Removed transaction from a subpool: {:?}, ",tx);
+        if let Some(ref _tx) = tx {
+            // println!("Removed transaction from a subpool: {:?}, ",tx);
         }
         tx
     }
@@ -136,15 +171,23 @@ pub struct AllTransaction {
 }
 
 impl AllTransaction {
-    pub fn contains(&self, hash: &TxHash) -> bool {
+    pub fn contains_by_hash(&self, hash: &TxHash) -> bool {
         self.by_hash.contains_key(hash)
+    }
+
+    pub fn contains_by_id(&self, tid: &TransactionId) -> bool {
+        self.txs.contains_key(tid)
+    }
+
+    pub fn get_tx_by_id(&self, tid: &TransactionId) -> Option<&PoolInternalTransaction> {
+        self.txs.get(tid)
     }
 
     pub fn len(&self) -> usize {
         self.txs.len()
     }
 
-    pub fn remove_transaction(
+    pub fn remove_transaction_by_id(
         &mut self,
         id: &TransactionId,
     ) -> Option<(Arc<ValidPoolTransaction>, SubPool)> {
@@ -153,6 +196,15 @@ impl AllTransaction {
         let tx = self.by_hash.remove(&hash)?;
 
         Some((tx, internal.sub_pool))
+    }
+
+    pub fn remove_transaction_by_hash(&mut self, hash: TxHash) -> Option<(Arc<ValidPoolTransaction>, SubPool)> {
+        let tx = self.by_hash.remove(&hash)?;
+        let tid = tx.tid();
+        let internal = self.txs.remove(tid)?;
+
+        Some((tx, internal.sub_pool))
+
     }
 
     pub fn insert_transaction(&mut self, transaction: ValidPoolTransaction, on_chain_balance: U256, on_chain_nonce: u64) -> Result<InsertOk, InsertErr> {
@@ -168,16 +220,8 @@ impl AllTransaction {
 
         let tx = Arc::new(transaction);
         let mut replaced_tx = None;
-        let mut state = TxState::new();
 
-
-        if U256::from(tx.fee()) + tx.value() <= on_chain_balance {
-            state.has_balance();
-        } 
-
-        if tx.nonce() > on_chain_nonce {
-            state.has_ancestor();
-        }
+        let state = TxState::new_with(&tx, on_chain_balance, on_chain_nonce);
 
         // let sbp: SubPool = state.clone().into();
         // dbg!(sbp);
@@ -459,7 +503,7 @@ mod tests {
         assert_eq!(1, pool.pending_pool.len());
         assert_eq!(0, pool.parked_pool.len());
 
-        pool.remove_transaction(vtx.tid());
+        pool.remove_transaction_by_id(vtx.tid());
 
         assert_eq!(0, pool.all_transaction.len());
         assert_eq!(0, pool.pending_pool.len());

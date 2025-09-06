@@ -36,7 +36,13 @@ impl ParkedPool {
 
     pub fn len(&self) -> usize {
         self.by_id.len()
-    } 
+    }
+
+    pub fn transactions(&self) -> &BTreeMap<TransactionId, ParkedTransaction> {
+        &self.by_id
+    }
+
+
 }
 
 #[derive(Debug)]
@@ -48,5 +54,13 @@ pub struct ParkedTransaction {
 impl ParkedTransaction {
     pub fn id(&self) -> u64 {
         self.submission_id
+    }
+
+    pub fn tx(&self) -> &ValidPoolTransaction {
+        &self.transaction
+    }
+
+    pub fn tx_clone(&self) -> Arc<ValidPoolTransaction> {
+        self.transaction.clone()
     }
 }

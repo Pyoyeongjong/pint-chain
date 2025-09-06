@@ -1,7 +1,6 @@
 // This project use alloy_primitives in only this file.
 pub use alloy_primitives::{B256, U256};
 use rand::Rng;
-use serde::Serialize;
 
 use crate::error::AddressError;
 
