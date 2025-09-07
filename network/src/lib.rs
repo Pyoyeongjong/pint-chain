@@ -86,14 +86,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
                                 }
                             }
                             NetworkHandleMessage::NewPayload(block) => {
-                                if this.config.boot_node.is_boot_node {
-                                    continue;
-                                }
-                                println!("\n\nHello NewPayload??\n\n");
-                                dbg!(&this.consensus);
                                 this.consensus.send(ConsensusHandleMessage::ImportBlock(block));
-
-                                
                             }
 
                             NetworkHandleMessage::BroadcastBlock(block) => {
@@ -185,6 +178,12 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
 
                             NetworkHandleMessage::RemovePeer(pid) => {
                                 this.peers.remove_peer_by_id(pid);
+                            }
+
+                            NetworkHandleMessage::BroadcastTransaction(signed) => {
+                                for peer in this.peers.inner().read().iter() {
+                                    peer.send(NetworkHandleMessage::NewTransaction(signed.clone()));
+                                }
                             }
                         }
                     }

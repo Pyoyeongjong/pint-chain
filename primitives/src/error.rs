@@ -4,7 +4,8 @@ use std::array::TryFromSliceError;
 pub enum BlockImportError {
     NoopImporter,
     ProviderError,
-    BlockHeightError
+    BlockHeightError,
+    AlreadyImportedBlock,
 }
 
 pub enum BlockValidatioError {

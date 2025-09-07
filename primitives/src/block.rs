@@ -31,7 +31,7 @@ impl Header {
             timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs(),
             proposer: COINBASE_ADDR,
             nonce: 0,
-            difficulty: 0,
+            difficulty: 20,
             height: 0,
             total_fee: U256::ZERO,
         }

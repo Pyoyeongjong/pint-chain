@@ -93,6 +93,7 @@ pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(re
                     Ok((signed, _)) => signed,
                     Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Decode Error"), id: req.id })
                 };
+                let signed_tx = signed.clone();
                 let origin = TransactionOrigin::Local;
                 let recovered = match signed.into_recovered() {
                     Ok(recovered) => recovered,
@@ -106,6 +107,7 @@ pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(re
                 // broadcast to peer!
                 success = true;
                 result = json!(tx_hash.to_string());
+                node.network.send(NetworkHandleMessage::BroadcastTransaction(signed_tx));
             } else {
                 result = json!("There is no new transaction");
             }

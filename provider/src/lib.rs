@@ -15,6 +15,31 @@ pub struct ProviderFactory<DB: Database> {
 }
 
 impl<DB: Database + Clone> ProviderFactory<DB> {
+
+    pub fn get_next_difficulty(&self) -> u32 {
+        let latest_header = self.db().get_latest_block_header();
+        let prev_difficulty: u32 = latest_header.difficulty;
+        // genesis
+        if latest_header.height == 0 {
+            return prev_difficulty;
+        }
+        let prev_header = match self.db().get_header(latest_header.height - 1) {
+            Ok(header) => header,
+            Err(_e) => return prev_difficulty,
+        };
+        let time = latest_header.timestamp - prev_header.timestamp;
+
+        let new_difficulty = if time <= 10 {
+            prev_difficulty + 1
+        } else if time <= 15 {
+            prev_difficulty
+        } else {
+            prev_difficulty.saturating_sub(1)
+        };
+        new_difficulty
+        
+    }
+
     pub fn new(db: DB) -> Self {
         Self { db }
     }

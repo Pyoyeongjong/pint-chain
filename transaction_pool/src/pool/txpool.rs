@@ -53,7 +53,8 @@ impl TxPool {
 
         if sub_pool.is_pending() {
             self.parked_pool.remove_transaction(tx_id);
-            self.pending_pool.add_transaction(transaction);
+            let _ = self.all_transaction.insert_transaction(transaction.clone(), on_chain_balance, on_chain_nonce);
+            self.add_new_transaction(transaction, None, sub_pool);
         }
     }
 
@@ -79,7 +80,7 @@ impl TxPool {
 
         let tx_hash = transaction.hash();
 
-        match self.all_transaction.insert_transaction(transaction, on_chain_balance, on_chain_nonce) {
+        match self.all_transaction.insert_transaction(Arc::new(transaction), on_chain_balance, on_chain_nonce) {
             Ok(InsertOk {
                 transaction,
                 replaced_tx,
@@ -207,7 +208,7 @@ impl AllTransaction {
 
     }
 
-    pub fn insert_transaction(&mut self, transaction: ValidPoolTransaction, on_chain_balance: U256, on_chain_nonce: u64) -> Result<InsertOk, InsertErr> {
+    pub fn insert_transaction(&mut self, transaction: Arc<ValidPoolTransaction>, on_chain_balance: U256, on_chain_nonce: u64) -> Result<InsertOk, InsertErr> {
         assert!(
             on_chain_nonce <= transaction.nonce(),
             "Invalid transaction due to nonce."
@@ -218,7 +219,7 @@ impl AllTransaction {
             "Invalid transaction due to fee."
         );
 
-        let tx = Arc::new(transaction);
+        let tx = transaction;
         let mut replaced_tx = None;
 
         let state = TxState::new_with(&tx, on_chain_balance, on_chain_nonce);

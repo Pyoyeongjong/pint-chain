@@ -20,7 +20,8 @@ pub enum NetworkHandleMessage {
     RequestDataResponseFinished,
     HandShake(u64, IpAddr, u16),
     Hello(u64, IpAddr, u16),
-    RemovePeer(u64)
+    RemovePeer(u64),
+    BroadcastTransaction(SignedTransaction),
 }
 
 impl NetworkHandleMessage {
@@ -143,6 +144,17 @@ impl NetworkHandleMessage {
                 let raw = Vec::new();
                 raw
             }
+            Self::BroadcastTransaction(signed) => {
+                let msg_type = 0x10 as u8;
+                let protocol_version = 0x00 as u8;
+                let mut data = signed.encode();
+                let payload_length= data.len();
+
+                let mut raw: Vec<u8> = vec![msg_type, protocol_version];
+                raw.extend_from_slice(&payload_length.to_be_bytes());
+                raw.append(&mut data);
+                raw
+            }
         }
     }
 
@@ -254,7 +266,8 @@ pub enum PayloadBuilderHandleMessage {
 }
 #[derive(Debug)]
 pub enum PayloadBuilderResultMessage {
-    Payload(Payload)
+    Payload(Payload),
+    PoolIsEmpty,
 }
 
 #[derive(Debug)]

@@ -53,13 +53,21 @@ impl<DB: Database> PayloadBuilder<DB> {
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
                             println!("@PayloadBuilder@ Accepted message");
+                            pool.print_pool();
+                            if pool.check_pending_pool_len() == 0 {
+                                if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::PoolIsEmpty) {
+                                    eprintln!("@PayloadBuilder@ Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                };
+                                continue;
+                            }
                             let provider = provider.clone();
-                            let pool = pool.clone();
+                            let pool: Pool<DB> = pool.clone();
                             let orchestration_tx = orchestration_tx.clone();
 
+                            let difficulty = provider.get_next_difficulty();
                             let parent_header = provider.db().get_latest_block_header();
                             tokio::spawn(async move {
-                                match default_paylod(BuildArguments::new(address, parent_header), provider, pool).await {
+                                match default_paylod(BuildArguments::new(address, parent_header, difficulty), provider, pool).await {
                                     Ok(payload) => {
                                         if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::Payload(payload)) {
                                             eprintln!("@PayloadBuilder@ Failed to send PayloadBuilderResultMessage: {:?}", e);

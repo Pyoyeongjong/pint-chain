@@ -25,7 +25,7 @@ impl<DB: Database> Pool<DB> {
     }
 
     pub fn remove_block_transactions(&self, block: &Block) {
-        let tx_hashes: Vec<TxHash> = block.body.iter().map(|tx| tx.hash).collect(); 
+        let tx_hashes: Vec<TxHash> = block.body.iter().map(|tx| tx.hash).collect();
         let mut pool = self.pool.pool().write();
         for hash in tx_hashes {
             pool.remove_transaction_by_hash(hash);
@@ -80,6 +80,11 @@ impl<DB: Database> Pool<DB> {
             pool.pending_pool.len(),
             pool.parked_pool.len()
         )
+    }
+
+    pub fn check_pending_pool_len(&self) -> usize {
+        let pool = self.pool.pool().read();
+        pool.pending_pool.len()
     }
 }
 

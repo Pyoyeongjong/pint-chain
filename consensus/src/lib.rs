@@ -112,8 +112,7 @@ impl<DB: Database> ConsensusEngine<DB> {
                             PayloadBuilderResultMessage::Payload(payload) => {
                                 println!("[Consensus] Accepted payload");
                                 if payload.body.len() == 0 {
-                                    println!("[Consensus] Payload with no body. Try again..");
-
+                                    println!("[Consensus] Payload with no body. Wait for new Transaction..");
                                     let builder_handle_cloned = builder_handle.clone();
                                     tokio::spawn(async move {
                                         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -125,11 +124,17 @@ impl<DB: Database> ConsensusEngine<DB> {
                                 miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
                                 latest_payload = Some(payload);
                             }
+                            PayloadBuilderResultMessage::PoolIsEmpty => {
+                                let builder_handle_cloned = builder_handle.clone();
+                                tokio::spawn(async move {
+                                    tokio::time::sleep(Duration::from_secs(5)).await;
+                                    builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
+                                });
+                            }
                         }
                     }
 
                     Some(msg) = rx.recv() => {
-                        println!("\n\nHello Consensus??\n\n");
                         println!("[Consensus] received message: {:?}", msg);
                         match msg {
                             ConsensusHandleMessage::ImportBlock(block) => {
@@ -139,6 +144,10 @@ impl<DB: Database> ConsensusEngine<DB> {
                                         BlockImportError::BlockHeightError => {
                                             eprintln!("[Consensus] Failed to import new block due to block heignt: {:?}. Try to update new datas.", e);
                                             network.send(NetworkHandleMessage::RequestData);
+                                            continue;
+                                        }
+                                        BlockImportError::AlreadyImportedBlock => {
+                                            println!("[Consensus] Already imported block! {:?}", block.header.height);
                                             continue;
                                         }
                                         _ => {

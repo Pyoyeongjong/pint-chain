@@ -122,6 +122,15 @@ impl Database for Arc<InMemoryDB> {
         }
     }
 
+    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, DatabaseError> {
+        let blockchain = self.blockchain.read();
+        if let Some(block) = blockchain.get(&block_no) {
+            Ok(block.header().clone())
+        } else {
+            Err(DatabaseError::DataNotExists)
+        }
+    }
+
     fn get_latest_block_header(&self) -> primitives::block::Header {
         let blockchain = self.blockchain.read();
         let latest = self.latest_block_number();

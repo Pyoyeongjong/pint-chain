@@ -12,8 +12,11 @@ impl<DB: Database> BlockImporter<DB> {
     }
 
     pub fn import_new_block(&self, block: Block) -> Result<(), BlockImportError> {
-        if block.header.height != self.provider.block_number() + 1 {
+        if block.header.height > self.provider.block_number() + 1 {
             return Err(BlockImportError::BlockHeightError);
+        }   
+        if block.header.height != self.provider.block_number() + 1 {
+            return Err(BlockImportError::AlreadyImportedBlock);
         }   
         let res = self.validate_block(&block)?;
         if res.success {

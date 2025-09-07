@@ -16,9 +16,10 @@ impl BuildArguments {
         res
     }
 
-    pub fn new(address: Address, header: Header) -> Self {
+    pub fn new(address: Address, header: Header, difficulty: u32) -> Self {
         let mut args = Self::noob(address);
         args.parent_header = header;
+        args.attributes.next_difficulty = difficulty;
         args
     }
 }
