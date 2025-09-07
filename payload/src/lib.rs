@@ -44,15 +44,15 @@ impl<DB: Database> PayloadBuilder<DB> {
         orchestration_tx: UnboundedSender<PayloadBuilderResultMessage>
     ) {
         tokio::spawn(async move {
-            println!("PayloadBuilder channel starts.");
+            println!("@PayloadBuilder@ channel starts.");
             let PayloadBuilder { address, provider, pool } = self;
 
             loop {
                 if let Some(msg) = to_manager_rx.recv().await {
-                    println!("PayloadBuilder received message: {:?}", msg);
+                    println!("@PayloadBuilder@ received message: {:?}", msg);
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
-                            println!("(BuildPayload) Accepted message");
+                            println!("@PayloadBuilder@ Accepted message");
                             let provider = provider.clone();
                             let pool = pool.clone();
                             let orchestration_tx = orchestration_tx.clone();
@@ -62,11 +62,11 @@ impl<DB: Database> PayloadBuilder<DB> {
                                 match default_paylod(BuildArguments::new(address, parent_header), provider, pool).await {
                                     Ok(payload) => {
                                         if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::Payload(payload)) {
-                                            eprintln!("(BuildPayload) Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                            eprintln!("@PayloadBuilder@ Failed to send PayloadBuilderResultMessage: {:?}", e);
                                         };
                                     }
                                     Err(e) => {
-                                        eprintln!("(BuildPayload) Failed to make new payload {:?}", e);
+                                        eprintln!("@PayloadBuilder@ Failed to make new payload {:?}", e);
                                     }
                                 }
                                 

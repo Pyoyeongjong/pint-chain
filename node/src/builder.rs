@@ -1,10 +1,13 @@
 use std::sync::Arc;
 
-use consensus::{miner::Miner, ConsensusEngine};
+use consensus::{handle::ConsensusHandle, miner::Miner, ConsensusEngine};
 use database::db::InMemoryDB;
-use network::builder::{NetworkBuilder, NetworkConfig};
+use network::{builder::{NetworkBuilder, NetworkConfig}, handle::NetworkHandle};
 use payload::PayloadBuilder;
+use primitives::handle::{ConsensusHandleMessage, NetworkHandleMessage};
 use provider::ProviderFactory;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use transaction_pool::Pool;
 
 use crate::{configs::{BlockConfig, ExecConfig, PoolConfig, RpcConfig}, error::NodeLaunchError, Node};
@@ -41,10 +44,16 @@ impl LaunchContext {
         let builder = PayloadBuilder::new(block_config.miner_address, provider.clone(), pool.clone());
         let (builder_handle, builder_rx) = builder.start_builder();
         // Build Network
-        let network_handle = NetworkBuilder::start_network(pool.clone(), provider.clone(), network_config).await?;
+        let (tx, rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
+        let rx_stream = UnboundedReceiverStream::new(rx); 
+        let network_handle = NetworkHandle::new(tx);
         // Build Miner
         let (miner_handle, miner_rx) = Miner::build_miner();
+
         // Build Consensus
+        let (tx, consensus_rx) = mpsc::unbounded_channel::<ConsensusHandleMessage>();
+        let consensus_handle = ConsensusHandle::new(tx);
+        
         let consensus = ConsensusEngine::new(
             pool.clone(), 
             builder_handle,
@@ -55,7 +64,9 @@ impl LaunchContext {
             builder_rx,
         );
 
-        let consensus_handle = consensus.start_consensus();
+        let network_handle = NetworkBuilder::start_network(network_handle, rx_stream, Box::new(consensus_handle.clone()), pool.clone(), provider.clone(), network_config).await?;
+
+        let consensus_handle = consensus.start_consensus(consensus_handle, consensus_rx);
 
         Ok(Node {
             provider,

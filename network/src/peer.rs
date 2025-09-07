@@ -19,6 +19,7 @@ impl Peer {
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
+        println!("#Network# send {:?} with {:?}", self.addr, msg);
         if let Err(e) = self.tx.send(msg) {
             eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
         }
@@ -40,12 +41,14 @@ impl Peer {
 
 #[derive(Debug)]
 pub struct PeerList {
+    pub submission_id: u64,
     pub peers: Arc<RwLock<Vec<Peer>>>,
 }
 
 impl PeerList {
     pub fn new() -> Self {
         Self {
+            submission_id: 0,
             peers: Arc::new(RwLock::new(Vec::new()))
         }
     }
@@ -67,15 +70,26 @@ impl PeerList {
         }
         None
     }
+
+    pub fn remove_peer_by_id(&mut self, pid: u64) {
+        let mut peers = self.inner().write();
+        peers.retain(|peer| peer.id != pid);
+    }
+
+    pub fn get_id(&mut self) -> u64 {
+        let sub_id = self.submission_id;
+        self.submission_id += 1;
+        sub_id
+    }
 }
 
 impl PeerList {
-    pub fn insert_new_peer(&self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) -> (Peer, u64) {
+    pub fn insert_new_peer(&mut self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) -> (Peer, u64) {
+        let pid = self.get_id();
         let (tx, mut rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
         // tx is used for every componets who want to send peer msg
         // rx isolates socket
         let mut peers = self.peers.write();
-        let pid = peers.len();
         let new_peer = Peer::new(pid as u64, addr.clone(), tx);
         peers.push(new_peer.clone());
 
@@ -89,6 +103,7 @@ impl PeerList {
                 match read_socket.read(&mut buf).await {
                     Ok(0) => {
                         println!("Peer {:?} closed connection", addr);
+                        network_handle.send(NetworkHandleMessage::RemovePeer(pid));
                         break;
                     }
                     Ok(n) => {

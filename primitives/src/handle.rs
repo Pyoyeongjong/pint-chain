@@ -19,7 +19,8 @@ pub enum NetworkHandleMessage {
     RequestData,
     RequestDataResponseFinished,
     HandShake(u64, IpAddr, u16),
-    Hello(u64, IpAddr, u16)
+    Hello(u64, IpAddr, u16),
+    RemovePeer(u64)
 }
 
 impl NetworkHandleMessage {
@@ -71,17 +72,19 @@ impl NetworkHandleMessage {
             Self::RequestDataResponse(ip_addr, port) => {
                 let msg_type = 0x04 as u8;
                 let protocol_version = 0x00 as u8;
-                let mut bytes = match ip_addr {
+                let mut ip_addr = match ip_addr {
                     IpAddr::V4(v4) => v4.octets().to_vec(),
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let mut port = port.to_be_bytes().to_vec();
-                let payload_length = bytes.len() + port.len();
+                let payload_length = ip_addr.len() + port.len();
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
-                raw.append(&mut bytes);
+                raw.append(&mut ip_addr);
                 raw.append(&mut port);
+                // ??? why should it be here ???
+                dbg!(raw.len());
                 raw
             }
             Self::RequestData => {
@@ -134,6 +137,10 @@ impl NetworkHandleMessage {
                 raw.extend_from_slice(&pid);
                 raw.append(&mut ip_addr);
                 raw.extend_from_slice(&port);
+                raw
+            }
+            Self::RemovePeer(_pid) => {
+                let raw = Vec::new();
                 raw
             }
         }
@@ -255,6 +262,7 @@ pub enum MinerHandleMessage {
     NewPayload(PayloadHeader),
 }
 
+#[derive(Debug)]
 pub enum MinerResultMessage {
     MiningSuccess(Header),
 }

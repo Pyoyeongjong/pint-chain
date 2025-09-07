@@ -140,5 +140,6 @@ impl Database for Arc<InMemoryDB> {
 
         let mut blockchain = self.blockchain.write();
         blockchain.insert(*latest, block);
+        println!("DB updated {}", latest);
     }
 }

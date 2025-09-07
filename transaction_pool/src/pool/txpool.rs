@@ -223,9 +223,6 @@ impl AllTransaction {
 
         let state = TxState::new_with(&tx, on_chain_balance, on_chain_nonce);
 
-        // let sbp: SubPool = state.clone().into();
-        // dbg!(sbp);
-
         let pool_tx = PoolInternalTransaction {
             transaction: Arc::clone(&tx),
             sub_pool: state.into(),
