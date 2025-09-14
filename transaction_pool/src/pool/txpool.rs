@@ -275,9 +275,9 @@ pub struct InsertOk {
 
 #[derive(Debug)]
 pub struct PoolInternalTransaction {
-    transaction: Arc<ValidPoolTransaction>,
-    sub_pool: SubPool,
-    state: TxState,
+    pub transaction: Arc<ValidPoolTransaction>,
+    pub sub_pool: SubPool,
+    pub state: TxState,
 }
 
 #[cfg(test)]

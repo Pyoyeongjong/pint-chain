@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::{Path, PathBuf}, sync::Arc};
 
 use libmdbx::{orm::{Database, DatabaseChart, Decodable, Encodable}, table, table_info};
 use once_cell::sync::Lazy;
-use primitives::{block::Block, transaction::SignedTransaction, types::{ Account, Address, BlockHash, TxHash, U256 }, world::World};
+use primitives::{block::Block, types::{ Account, Address, BlockHash, TxHash, U256 }, world::World};
 
 use crate::{error::DatabaseError, traits::DatabaseTrait};
 
@@ -65,7 +65,7 @@ table!(
 
 table!(
     /// Transactions
-    (Transactions) TxHash => SignedTransaction
+    (Transactions) TxHash => BlockNo
 );
 
 
@@ -75,6 +75,7 @@ pub static TABLES: Lazy<Arc<DatabaseChart>> =
         table_info!(Blocks),
         table_info!(States),
         table_info!(Transactions),
+        table_info!(BlockByHash),
     ].into_iter().collect()));
 
 
@@ -226,9 +227,18 @@ impl DatabaseTrait for MDBX {
         let tx = self.inner.begin_readwrite().map_err(|_| DatabaseError::DBError)?;
         let mut cursor = tx.cursor::<Basic>().map_err(|_| DatabaseError::DBError)?;
         for (address, account) in new_account_state.iter() {
-
             cursor.upsert(DBAdress::new(*address, new_latest), *account).map_err(|_| DatabaseError::DBError)?;
         }
+
+        let mut cursor = tx.cursor::<Transactions>().map_err(|_| DatabaseError::DBError)?;
+        let txs = &new_block.body;
+        for tx in txs {
+            cursor.upsert(tx.hash, new_latest).map_err(|_| DatabaseError::DBError)?;
+        }
+
+        let mut cursor = tx.cursor::<BlockByHash>().map_err(|_| DatabaseError::DBError)?;
+        let block_hash = new_block.header().calculate_hash();
+        cursor.upsert(block_hash, new_latest).map_err(|_| DatabaseError::DBError)?;
 
         let mut cursor = tx.cursor::<States>().map_err(|_| DatabaseError::DBError)?;
         cursor.upsert(new_latest, new_field_state).map_err(|_| DatabaseError::DBError)?;

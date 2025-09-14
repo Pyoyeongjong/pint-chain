@@ -161,8 +161,9 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 network.send(NetworkHandleMessage::BroadcastBlock(block));
                                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
-                            ConsensusHandleMessage::NewTransaction(recovered) => {
+                            ConsensusHandleMessage::NewTransaction(_recovered) => {
                                 // update current payload (maybe?)
+                                // pass now
                             }
                         }
                     }
