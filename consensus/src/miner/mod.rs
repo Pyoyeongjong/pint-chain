@@ -42,7 +42,7 @@ impl Miner {
 
                             // this order should be same as header hash function
                             let mut hasher = Sha256::new();
-                            hasher.update(payload_header.previous_hash);
+                            hasher.update(payload_header.previous_hash.hash());
                             hasher.update(payload_header.transaction_root);
                             hasher.update(payload_header.state_root);
                             hasher.update(payload_header.timestamp.to_be_bytes());

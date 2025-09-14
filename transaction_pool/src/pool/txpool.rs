@@ -273,7 +273,6 @@ pub struct InsertOk {
 }
 
 
-
 #[derive(Debug)]
 pub struct PoolInternalTransaction {
     transaction: Arc<ValidPoolTransaction>,
@@ -320,7 +319,7 @@ mod tests {
         };
 
         let tx_hash = tx.encode_for_signing();
-        let digest = Sha256::new_with_prefix(tx_hash);
+        let digest = Sha256::new_with_prefix(tx_hash.hash());
         let (sig, recid): (ECDSASig, RecoveryId) =
             signing_key.sign_digest_recoverable(digest).unwrap();
         let signature = Signature::from_sig(sig, recid);

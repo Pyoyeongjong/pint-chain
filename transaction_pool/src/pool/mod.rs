@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 
 use crate::{identifier::TransactionId, pool::{best::BestTransactions, txpool::TxPool}, validator::{validtx::ValidPoolTransaction, TransactionValidationOutcome, Validator}};
 
@@ -12,12 +12,12 @@ pub mod state;
 pub mod best;
 
 #[derive(Debug)]
-pub struct PoolInner<DB: Database> {
+pub struct PoolInner<DB: DatabaseTrait> {
     validator: Validator<DB>,
     transaction_pool: RwLock<TxPool>,
 }
 
-impl<DB: Database> PoolInner<DB> {
+impl<DB: DatabaseTrait> PoolInner<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
             validator: Validator::new(provider),

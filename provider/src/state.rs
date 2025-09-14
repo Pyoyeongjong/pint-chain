@@ -6,13 +6,14 @@ use sha2::{Digest, Sha256};
 use crate::error::{StateExecutionError, TxExecutionError};
 
 
+// #[derive(Debug)]
+// pub struct State {
+//     accounts: Arc<HashMap<Address, Account>>,
+//     field: Arc<World>,
+// }
+
+
 #[derive(Debug)]
-pub struct State {
-    accounts: Arc<HashMap<Address, Account>>,
-    field: Arc<World>,
-}
-
-
 pub struct ExecutableState {
     pub accounts_base: Arc<HashMap<Address, Account>>,
     pub accounts_write: HashMap<Address, Account>,

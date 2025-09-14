@@ -1,24 +1,25 @@
 use std::sync::Arc;
 
 use primitives::{transaction::{Recovered, Tx}, types::{TxHash, COINBASE_ADDR, U256}};
-use provider::{state::State, Database, Provider, ProviderFactory};
+use provider::{DatabaseTrait, Provider, ProviderFactory};
 
 use crate::{error::InvalidPoolTransactionError, identifier::{TransactionId, TransactionOrigin}, validator::validtx::ValidPoolTransaction};
 
 pub mod validtx;
 
 #[derive(Debug)]
-pub struct Validator<DB: Database> {
+pub struct Validator<DB: DatabaseTrait> {
     inner: Arc<ValidatorInner<DB>>,
 }
 
-impl<DB: Database> Validator<DB> {
+impl<DB: DatabaseTrait> Validator<DB> {
     pub fn validate_transaction(&self, origin: TransactionOrigin, transaction: Recovered) -> TransactionValidationOutcome {
-        self.inner.validate_one(origin, transaction, None)
+        let res = self.inner.validate_one(origin, transaction, None);
+        res
     }
 }
 
-impl<DB: Database> Validator<DB> {
+impl<DB: DatabaseTrait> Validator<DB> {
     pub fn new(provier: ProviderFactory<DB>) -> Self {
         Self {
             inner: Arc::new(ValidatorInner::new(provier)),
@@ -27,16 +28,14 @@ impl<DB: Database> Validator<DB> {
 }
 
 #[derive(Debug)]
-pub struct ValidatorInner<DB: Database> {
+pub struct ValidatorInner<DB: DatabaseTrait> {
     provider: ProviderFactory<DB>,
-    current_state: Option<State>,
 }
 
-impl<DB: Database> ValidatorInner<DB> {
+impl<DB: DatabaseTrait> ValidatorInner<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
             provider,
-            current_state: None,
         }
     }
 
@@ -137,7 +136,7 @@ impl TransactionValidationOutcome {
 
 #[cfg(test)]
 mod tests {
-    use database::db::InMemoryDB;
+    use database::{immemorydb::InMemoryDB, mdbx::MDBX};
     use primitives::{transaction::SignedTransaction, types::{Account, U256}};
 
     use crate::identifier::TransactionOrigin;
@@ -166,10 +165,8 @@ mod tests {
     fn test_validate_pending_transaction() {
         let transaction = new_transaction();
         let recovered = transaction.into_recovered().unwrap();
-        let mut db = InMemoryDB::new();
+        let mut db = MDBX::genesis_state();
         db.add_account(recovered.signer(), Account::new(recovered.nonce(), U256::MAX)).unwrap();
-
-        let db = Arc::new(db);
 
         let provider = ProviderFactory::new(db);
         let validator = Validator::new(provider);

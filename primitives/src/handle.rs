@@ -1,4 +1,5 @@
 use std::{fmt::Debug, net::{IpAddr, Ipv4Addr, SocketAddr}};
+
 use crate::{block::{Block, Header, Payload, PayloadHeader}, error::DecodeError, transaction::{Recovered, SignedTransaction}};
 
 pub trait Handle: Send + Sync + std::fmt::Debug{
@@ -51,7 +52,7 @@ impl NetworkHandleMessage {
 
                 let msg_type = 0x02 as u8;
                 let protocol_version = 0x00 as u8;
-                let mut data = block.encode();
+                let mut data = block.encode_ref();
                 let payload_length= data.len();
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
@@ -62,7 +63,7 @@ impl NetworkHandleMessage {
             Self::BroadcastBlock(block) => {
                 let msg_type = 0x03 as u8;
                 let protocol_version = 0x00 as u8;
-                let mut data = block.encode();
+                let mut data = block.encode_ref();
                 let payload_length= data.len();
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];

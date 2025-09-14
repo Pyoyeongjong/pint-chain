@@ -1,12 +1,12 @@
 use primitives::{block::{Block, BlockValidationResult}, error::{BlockImportError, BlockValidatioError}};
-use provider::{executor::Executor, Database, ProviderFactory};
+use provider::{executor::Executor, DatabaseTrait, ProviderFactory};
 
 #[derive(Debug)]
-pub struct BlockImporter<DB: Database> {
+pub struct BlockImporter<DB: DatabaseTrait> {
     provider: ProviderFactory<DB>
 }
 
-impl<DB: Database> BlockImporter<DB> {
+impl<DB: DatabaseTrait> BlockImporter<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self { provider }
     }

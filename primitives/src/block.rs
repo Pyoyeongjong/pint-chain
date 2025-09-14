@@ -1,6 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use alloy_primitives::U256;
+use anyhow::bail;
+use libmdbx::orm::{Decodable, Encodable};
 use sha2::{Digest, Sha256};
 
 use crate::error::{BlockValidatioError, DecodeError};
@@ -39,7 +41,7 @@ impl Header {
 
     pub fn encode(&self) -> Vec<u8> {
         let mut raw = [0u8; 176];
-        raw[0..32].copy_from_slice(&self.previous_hash.0);
+        raw[0..32].copy_from_slice(&self.previous_hash.hash().0);
         raw[32..64].copy_from_slice(&self.transaction_root.0);
         raw[64..96].copy_from_slice(&self.state_root.0);
         raw[96..104].copy_from_slice(&self.timestamp.to_be_bytes());
@@ -53,7 +55,7 @@ impl Header {
 
     pub fn decode(buf: [u8; 176]) -> Self {
         Self {
-            previous_hash: B256::from_slice(&buf[0..32]),
+            previous_hash: BlockHash::from(B256::from_slice(&buf[0..32])),
             transaction_root: B256::from_slice(&buf[32..64]),
             state_root: B256::from_slice(&buf[64..96]),
             timestamp: u64::from_be_bytes(buf[96..104].try_into().unwrap()),
@@ -67,7 +69,7 @@ impl Header {
 
     pub fn calculate_hash(&self) -> BlockHash {
         let mut hasher = Sha256::new();
-        hasher.update(self.previous_hash);
+        hasher.update(self.previous_hash.hash());
         hasher.update(self.transaction_root);
         hasher.update(self.state_root);
         hasher.update(self.timestamp.to_be_bytes());
@@ -76,7 +78,7 @@ impl Header {
         hasher.update(self.height.to_be_bytes());
         hasher.update(self.nonce.to_be_bytes());
         hasher.update(self.total_fee.to_be_bytes::<32>());
-        B256::from_slice(&hasher.finalize())
+        BlockHash::from(B256::from_slice(&hasher.finalize()))
     }
 }
 
@@ -96,7 +98,8 @@ impl Block {
             body: Vec::new()
         }
     }
-    pub fn encode(&self) -> Vec<u8> {
+
+    pub fn encode_ref(&self) -> Vec<u8> {
         let mut res: Vec<u8> = Vec::new();
         let header = self.header.encode();
         res = [res, header].concat();
@@ -133,6 +136,47 @@ impl Block {
 
     pub fn header(&self) -> &Header{
         &self.header
+    }
+}
+
+impl Encodable for Block {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Self::Encoded {
+        let mut res: Vec<u8> = Vec::new();
+        let header = self.header.encode();
+        res = [res, header].concat();
+
+        // Recoverd -> SignedTransaction
+        for recovered in self.body.iter() {
+            let encoded = recovered.encode();
+            res = [res, encoded].concat();
+        }
+        res
+    }
+}
+
+impl Decodable for Block {
+    fn decode(b: &[u8]) -> anyhow::Result<Self> {
+        if b.len() < 176 {
+            bail!("Too short raw data: {} bytes", b.len());
+        }
+
+        let (header_raw, mut body_raw) = b.split_at(176);
+        let header = Header::decode(header_raw.try_into().unwrap());
+        let mut body = Vec::new();
+
+        while body_raw.len() >= 149 {
+            let (tx_raw, remains) = body_raw.split_at(149);
+            let (signed, _) = SignedTransaction::decode(&tx_raw.to_vec()).unwrap();
+            body_raw = remains;
+            body.push(signed);
+        }
+
+        
+        Ok(Self {
+            header, body
+        })
     }
 }
 

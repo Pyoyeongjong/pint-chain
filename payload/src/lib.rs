@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use primitives::{block::{Payload, PayloadHeader}, handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage}, merkle::calculate_merkle_root,types::{Address, U256}};
-use provider::{executor::Executor, Database, ProviderFactory};
+use provider::{executor::Executor, DatabaseTrait, ProviderFactory};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use transaction_pool::Pool;
 
@@ -12,13 +12,13 @@ pub mod error;
 pub mod builder;
 
 #[derive(Debug)]
-pub struct PayloadBuilder<DB: Database> {
+pub struct PayloadBuilder<DB: DatabaseTrait> {
     address: Address,
     provider: ProviderFactory<DB>,
     pool: Pool<DB>,
 }
 
-impl<DB: Database> PayloadBuilder<DB> {
+impl<DB: DatabaseTrait> PayloadBuilder<DB> {
     pub fn new(address: Address, provider: ProviderFactory<DB>, pool: Pool<DB>) -> Self {
         Self {
             address,
@@ -90,7 +90,7 @@ impl<DB: Database> PayloadBuilder<DB> {
     }
 }
 
-async fn default_paylod<DB: Database>(
+async fn default_paylod<DB: DatabaseTrait>(
     args: BuildArguments,
     provider: ProviderFactory<DB>, 
     pool: Pool<DB>
@@ -119,6 +119,7 @@ async fn default_paylod<DB: Database>(
     while let Some(pool_tx) = best_txs.next() {
         match executor.execute_transaction(&pool_tx.transaction) {
             Ok(receipt) => {
+                println!("{:?}", receipt);
                 if receipt.success {
                     total_fee += U256::from(receipt.fee);
                     body.push(pool_tx.tx().tx().clone());
@@ -133,7 +134,7 @@ async fn default_paylod<DB: Database>(
     }
 
     let next_height = parent_header.height + 1;
-    let tx_hashes = body.iter().map(|tx| tx.hash).collect();
+    let tx_hashes = body.iter().map(|tx| tx.hash.hash()).collect();
     let transaction_root = calculate_merkle_root(tx_hashes);
     let state_root = executor.calculate_state_root();
     let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs();

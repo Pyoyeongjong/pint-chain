@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
 
 use primitives::handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage};
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 use tokio::{net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use transaction_pool::{identifier::TransactionOrigin, Pool};
@@ -13,7 +13,7 @@ pub mod builder;
 pub mod error;
 pub mod handle;
 
-pub struct NetworkManager<DB: Database> {
+pub struct NetworkManager<DB: DatabaseTrait> {
     listener: TcpListener,
     pub provider: ProviderFactory<DB>,
     networ_handle: NetworkHandle,
@@ -24,7 +24,7 @@ pub struct NetworkManager<DB: Database> {
     config: NetworkConfig,
 }
 
-impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
+impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
     fn start_loop(self, is_boot_node: bool) {
         tokio::spawn(async move {
             println!("Network channel starts.");
@@ -210,7 +210,7 @@ impl<DB: Database + Sync + Send + 'static> NetworkManager<DB> {
     }
 }
 
-impl<DB: Database + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB> {
+impl<DB: DatabaseTrait + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NetworkManager")
             .field("listener", &self.listener)

@@ -1,12 +1,55 @@
 // This project use alloy_primitives in only this file.
 pub use alloy_primitives::{B256, U256};
+use libmdbx::orm::{Decodable, Encodable};
 use rand::Rng;
 
 use crate::error::AddressError;
 
 pub type ChainId = u64;
-pub type TxHash = B256;
-pub type BlockHash = B256;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TxHash(pub B256);
+
+impl TxHash {
+    pub fn hash(&self) -> B256 {
+        self.0
+    }
+}
+
+impl From<B256> for TxHash {
+    fn from(value: B256) -> Self {
+        Self(value)
+    }
+}
+
+impl Encodable for TxHash {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Self::Encoded {
+        self.hash().to_vec()
+    }
+}
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BlockHash(pub B256);
+impl BlockHash {
+    pub fn hash(&self) -> B256 {
+        self.0
+    }
+}
+
+impl From<B256> for BlockHash {
+    fn from(value: B256) -> Self {
+        Self(value)
+    }
+}
+
+impl Encodable for BlockHash {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Self::Encoded {
+        self.hash().to_vec()
+    }
+}
+
 pub type PayloadId = u64;
 
 const ADDR_LEN: usize = 20;
@@ -16,6 +59,17 @@ pub struct Address([u8; ADDR_LEN]);
 pub const COINBASE_ADDR: Address = Address([0u8; 20]);
 
 impl Address {
+
+    pub fn min() -> Self {
+        let addr = [0u8; 20];
+        Self::from_byte(addr)
+    }
+
+    pub fn max() -> Self {
+        let addr = [0xff; 20];
+        Self::from_byte(addr)
+    }
+
     pub fn from_byte(address: [u8; 20]) -> Self {
         Self(address)
     }
@@ -53,20 +107,21 @@ impl Default for Address {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+impl Encodable for Address {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Self::Encoded {
+        self.0.to_vec()
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Account {
     pub nonce: u64,
     pub balance: U256,
 }
 
 impl Account {
-
-    pub fn encode(&self) -> Vec<u8> {
-        let mut res = Vec::new();
-        res.extend_from_slice(&self.nonce().to_be_bytes());
-        res.extend_from_slice(&self.balance().to_be_bytes::<32>());
-        res
-    }
 
     pub fn new(nonce: u64, balance: U256) -> Self {
         Self { nonce, balance }
@@ -102,6 +157,27 @@ impl Account {
 
     pub fn increase_nonce(&mut self) {
         self.nonce += 1;
+    }
+}
+
+impl Decodable for Account {
+    fn decode(b: &[u8]) -> anyhow::Result<Self> {
+        let mut raw = [0u8; 8];
+        raw.copy_from_slice(&b[0..8]);
+        let nonce = u64::from_be_bytes(raw);
+        let balance = U256::from_be_slice(&b[8..40]);
+        Ok(Account { nonce, balance })
+    }
+}
+
+impl Encodable for Account {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Vec<u8> {
+        let mut res = Vec::new();
+        res.extend_from_slice(&self.nonce().to_be_bytes());
+        res.extend_from_slice(&self.balance().to_be_bytes::<32>());
+        res
     }
 }
 

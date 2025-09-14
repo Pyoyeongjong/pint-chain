@@ -1,4 +1,3 @@
-use database::error::DatabaseError;
 use primitives::{error::RecoveryError, types::TxHash};
 
 #[derive(Clone, Debug)]
@@ -10,7 +9,7 @@ pub enum ExecutionError {
 
 #[derive(Debug)]
 pub enum ProviderError {
-    DatabaseError(DatabaseError),
+    DatabaseError(Box<dyn std::error::Error>),
     ExecutionError(ExecutionError),
     StateNotExist(u64)
 }

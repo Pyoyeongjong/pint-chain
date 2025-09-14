@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use primitives::{block::Block, transaction::Recovered, types::TxHash};
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 
 use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::{best::BestTransactions, PoolInner}, validator::TransactionValidationOutcome};
 
@@ -13,11 +13,11 @@ pub mod mock;
 pub mod error;
 
 #[derive(Debug, Clone)]
-pub struct Pool<DB: Database> {
+pub struct Pool<DB: DatabaseTrait> {
     pool: Arc<PoolInner<DB>>,
 }
 
-impl<DB: Database> Pool<DB> {
+impl<DB: DatabaseTrait> Pool<DB> {
     pub fn new(provider: ProviderFactory<DB>) -> Self {
         Self {
             pool: Arc::new(PoolInner::new(provider)),

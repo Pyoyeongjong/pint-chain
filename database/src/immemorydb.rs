@@ -3,7 +3,7 @@ use std::{collections::{BTreeMap, HashMap}, sync::Arc};
 use parking_lot::{RwLock};
 use primitives::{block::Block, types::{Account, Address, U256}, world::World};
 
-use crate::{error::DatabaseError, traits::Database};
+use crate::{error::DatabaseError, traits::DatabaseTrait};
 
 #[derive(Debug)]
 pub struct InMemoryDB {
@@ -14,29 +14,6 @@ pub struct InMemoryDB {
 }
 
 impl InMemoryDB {
-
-    pub fn encode_block(&self, block_no: u64) -> Result<Vec<u8>, DatabaseError> {
-        if block_no > *self.latest.read() {
-            return Err(DatabaseError::BlockEncodeError);
-        }
-        let binding= self.accounts.read();
-        let accounts = binding.get(&block_no).unwrap();
-        
-        let binding = self.field.read();
-        let field = binding.get(&block_no).unwrap();
-
-        let mut res = Vec::new();
-        for (address, account) in accounts.iter() {
-            let addr = address.get_addr();
-            let account = account.encode();
-            res.extend_from_slice(addr);
-            res.extend_from_slice(&account);
-        };
-
-        res.extend_from_slice(&field.encode());
-
-        Ok(res)
-    }
 
     // 28dcb1338b900419cd613a8fb273ae36e7ec2b1d pint
     // 0534501c34f5a0f3fa43dc5d78e619be7edfa21a chain
@@ -85,7 +62,7 @@ impl InMemoryDB {
     }
 }
 
-impl Database for Arc<InMemoryDB> {
+impl DatabaseTrait for Arc<InMemoryDB> {
     fn latest_block_number(&self) -> u64 {
         *self.latest.read()
     }
@@ -97,7 +74,7 @@ impl Database for Arc<InMemoryDB> {
         Ok(latest_accounts.get(address).or(None).cloned())
     }
     
-    fn get_state(&self, block_no: u64) -> Result<(Option<HashMap<Address, Account>>, Option<World>), crate::error::DatabaseError> {
+    fn get_state(&self, block_no: u64) -> Result<(Option<HashMap<Address, Account>>, Option<World>), Box<dyn std::error::Error>> {
         let accounts = self.accounts.read();
         let mut account_base = None;
         if let Some(state_account) = accounts.get(&block_no) {
@@ -113,21 +90,21 @@ impl Database for Arc<InMemoryDB> {
         Ok((account_base, field_base))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Block, DatabaseError> {
+    fn get_block(&self, block_no: u64) -> Result<Block, Box<dyn std::error::Error>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(block.clone())
         } else {
-            Err(DatabaseError::DataNotExists)
+            Err(Box::new(DatabaseError::DataNotExists))
         }
     }
 
-    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, DatabaseError> {
+    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(block.header().clone())
         } else {
-            Err(DatabaseError::DataNotExists)
+            Err(Box::new(DatabaseError::DataNotExists))
         }
     }
 
@@ -138,7 +115,9 @@ impl Database for Arc<InMemoryDB> {
         block.header.clone()
     }
     
-    fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World, block: Block) {
+    fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World, block: Block) 
+        -> Result<(), Box<dyn std::error::Error>>{
+        dbg!(&new_account_state);
         let mut latest = self.latest.write();
         *latest += 1;
         let mut state = self.accounts.write();
@@ -150,5 +129,7 @@ impl Database for Arc<InMemoryDB> {
         let mut blockchain = self.blockchain.write();
         blockchain.insert(*latest, block);
         println!("DB updated {}", latest);
+
+        Ok(())
     }
 }

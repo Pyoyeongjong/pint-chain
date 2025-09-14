@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use consensus::{handle::ConsensusHandle, miner::Miner, ConsensusEngine};
-use database::db::InMemoryDB;
+use database::{immemorydb::InMemoryDB, mdbx::MDBX, DBImpl};
 use network::{builder::{NetworkBuilder, NetworkConfig}, handle::NetworkHandle};
 use payload::PayloadBuilder;
 use primitives::handle::{ConsensusHandleMessage, NetworkHandleMessage};
@@ -33,10 +33,17 @@ impl LaunchContext {
 }
 
 impl LaunchContext {
-    pub async fn launch(self) -> Result<Node<Arc<InMemoryDB>>, NodeLaunchError> {
+    pub async fn launch(self) -> Result<Node<DBImpl>, NodeLaunchError> {
         let Self {network_config, block_config,..} = self;
         // Build Provider
-        let db = Arc::new(InMemoryDB::genesis_state());
+
+        let db = if network_config.boot_node.is_boot_node() {
+            println!("DB Launched with MDBX.");
+            DBImpl::MDBX(MDBX::genesis_state())
+        } else {
+            println!("DB Launched with InMemoryDB.");
+            DBImpl::InMemoryDB(Arc::new(InMemoryDB::genesis_state()))
+        };
         let provider = ProviderFactory::new(db);
         // Build Pool
         let pool = Pool::new(provider.clone());

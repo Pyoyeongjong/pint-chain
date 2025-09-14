@@ -4,17 +4,17 @@ pub mod executor;
 
 use std::sync::Arc;
 
-pub use database::traits::Database;
+pub use database::traits::DatabaseTrait;
 use primitives::{block::Block, types::{Account, Address}};
 
 use crate::{error::ProviderError, executor::Executor, state::ExecutableState};
 
 #[derive(Debug, Clone)]
-pub struct ProviderFactory<DB: Database> {
+pub struct ProviderFactory<DB: DatabaseTrait> {
     db: DB
 }
 
-impl<DB: Database + Clone> ProviderFactory<DB> {
+impl<DB: DatabaseTrait + Clone> ProviderFactory<DB> {
 
     pub fn get_next_difficulty(&self) -> u32 {
         let latest_header = self.db().get_latest_block_header();
@@ -86,17 +86,17 @@ impl<DB: Database + Clone> ProviderFactory<DB> {
         };
 
         // update results
-        self.db.update(new_account_state, new_field_state, block);
+        let _ = self.db.update(new_account_state, new_field_state, block);
         Ok(())
     }
 }
 
-pub struct Provider<DB: Database> {
+pub struct Provider<DB: DatabaseTrait> {
     db: DB,
     block_no: u64,
 }
 
-impl<DB: Database> Provider<DB> {
+impl<DB: DatabaseTrait> Provider<DB> {
     pub fn basic_account(&self, address: Address) -> Result<Option<Account>, Box<dyn std::error::Error>>  {
         Ok(self.db.basic(&address)?)
     }

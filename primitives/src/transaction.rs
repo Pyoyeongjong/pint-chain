@@ -1,6 +1,9 @@
+use anyhow::bail;
 use k256::ecdsa::RecoveryId;
 use k256::ecdsa::VerifyingKey;
 use k256::EncodedPoint;
+use libmdbx::orm::Decodable;
+use libmdbx::orm::Encodable;
 use sha2::Sha256;
 use sha2::Digest;
 use crate::error::DecodeError;
@@ -37,7 +40,7 @@ impl Transaction {
         hasher.update(self.to.get_addr());
         hasher.update(self.fee.to_be_bytes());
         hasher.update(self.value.to_string().as_bytes());
-        B256::from_slice(&hasher.finalize())
+        TxHash::from(B256::from_slice(&hasher.finalize()))
     }
 
     fn encode(&self) -> Vec<u8> {
@@ -50,7 +53,7 @@ impl Transaction {
         arr.to_vec()
     }
 
-    pub fn raw_decode(data: &Vec<u8>) -> Result<(Self, usize), DecodeError> {
+    pub fn raw_decode(data: &[u8]) -> Result<(Self, usize), DecodeError> {
         let raw: [u8; 84] = data[0..84].try_into()?;
         let chain_id: ChainId = ChainId::from_be_bytes(raw[0..8].try_into()?);
         let nonce: u64 = u64::from_be_bytes(raw[8..16].try_into()?);
@@ -125,13 +128,13 @@ impl SignedTransaction {
         [tx_arr, sig_arr].concat()
     }
 
-    pub fn decode(raw: &Vec<u8>) -> Result<(Self, usize), crate::error::DecodeError> {
+    pub fn decode(raw: &[u8]) -> Result<(Self, usize), crate::error::DecodeError> {
         let size = raw.len();
         let (tx, tx_size) = Transaction::raw_decode(&raw)?;
 
         const SIG_RAW_LEN: usize = Signature::raw_len();
         if size < tx_size + SIG_RAW_LEN {
-            return Err(DecodeError::TooShortRawData(raw.clone()));
+            return Err(DecodeError::TooShortRawData(raw.to_vec()));
         }
 
         let sig_raw: [u8; SIG_RAW_LEN] = raw[tx_size..tx_size + SIG_RAW_LEN].try_into()?;
@@ -147,7 +150,7 @@ impl SignedTransaction {
         let hash = self.hash;
 
         let recovered_key = match VerifyingKey::recover_from_digest(
-            Sha256::new_with_prefix(hash),
+            Sha256::new_with_prefix(hash.hash()),
             &signature,
             recid,
         ) {
@@ -193,6 +196,45 @@ impl Tx for SignedTransaction {
 
     fn value(&self) -> U256 {
         self.transaction().value()
+    }
+}
+
+
+// For db encode, decode
+impl Encodable for SignedTransaction {
+    type Encoded = Vec<u8>;
+
+    fn encode(self) -> Self::Encoded {
+        let tx_arr = self.tx.encode();
+        let sig_arr: Vec<u8> = self.signature.as_bytes().to_vec();
+        [tx_arr, sig_arr].concat()
+    }
+}
+
+impl Decodable for SignedTransaction {
+    fn decode(raw: &[u8]) -> anyhow::Result<Self> {
+        let size = raw.len();
+        let (tx, tx_size) = match Transaction::raw_decode(&raw) {
+            Ok(res) => res,
+            Err(e) => {
+                bail!("e: {:?}", e);
+            }
+        };
+
+        const SIG_RAW_LEN: usize = Signature::raw_len();
+        if size < tx_size + SIG_RAW_LEN {
+            bail!("Too short raw data!. {:?}", size);
+        }
+
+        let sig_raw: [u8; SIG_RAW_LEN] = raw[tx_size..tx_size + SIG_RAW_LEN].try_into()?;
+        let signature = match Signature::raw_decode(&sig_raw) {
+            Ok(sig) => sig,
+            Err(e) => {
+                bail!("e: {:?}", e);
+            }
+        };
+        let signed = tx.into_signed(signature);
+        Ok(signed)
     }
 }
 
@@ -275,7 +317,7 @@ mod tests {
         };
 
         let tx_hash = tx.encode_for_signing();
-        let digest = Sha256::new_with_prefix(tx_hash);
+        let digest = Sha256::new_with_prefix(tx_hash.hash());
         let (sig, recid): (ECDSASig, RecoveryId) =
             signing_key.sign_digest_recoverable(digest).unwrap();
         let signature = Signature::from_sig(sig, recid);

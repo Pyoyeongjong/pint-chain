@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use primitives::handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage};
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 use tokio::{net::TcpListener};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use transaction_pool::Pool;
@@ -11,7 +11,7 @@ use crate::{error::NetworkStartError, peer::PeerList, NetworkHandle, NetworkMana
 pub struct NetworkBuilder;
 
 impl NetworkBuilder {
-    pub async fn start_network<DB: Database + Send + Sync + 'static>(network_handle: NetworkHandle, rx_stream: UnboundedReceiverStream<NetworkHandleMessage>, consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>, pool: Pool<DB>, provider: ProviderFactory<DB>, cfg: NetworkConfig) -> Result<NetworkHandle, NetworkStartError> {
+    pub async fn start_network<DB: DatabaseTrait + Send + Sync + 'static>(network_handle: NetworkHandle, rx_stream: UnboundedReceiverStream<NetworkHandleMessage>, consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>, pool: Pool<DB>, provider: ProviderFactory<DB>, cfg: NetworkConfig) -> Result<NetworkHandle, NetworkStartError> {
         // Server Binding
         let listener = match TcpListener::bind((cfg.address, cfg.port)).await {
             Ok(listner) => listner,

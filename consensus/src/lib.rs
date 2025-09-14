@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use payload::handle::{PayloadBuilderHandle, };
 use primitives::{block::{Block, Payload}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage, NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage}};
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 use tokio::sync::mpsc::UnboundedReceiver;
 use transaction_pool::Pool;
 
@@ -13,7 +13,7 @@ pub mod importer;
 pub mod handle;
 
 #[derive(Debug)]
-pub struct ConsensusEngine<DB: Database> {
+pub struct ConsensusEngine<DB: DatabaseTrait> {
     importer: BlockImporter<DB>,
     pool: Pool<DB>,
     // Network
@@ -27,7 +27,7 @@ pub struct ConsensusEngine<DB: Database> {
     miner_events: UnboundedReceiver<MinerResultMessage>,
 }
 
-impl<DB: Database> ConsensusEngine<DB> {
+impl<DB: DatabaseTrait> ConsensusEngine<DB> {
     pub fn new(
         pool: Pool<DB>, 
         builder_handle: PayloadBuilderHandle, 

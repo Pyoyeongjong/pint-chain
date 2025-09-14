@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{extract::State, routing::post, Json, Router};
 use network::{builder::NetworkConfig};
 use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, transaction::SignedTransaction, types::Address};
-use provider::{Database, ProviderFactory};
+use provider::{DatabaseTrait, ProviderFactory};
 use serde_json::json;
 use tokio::net::TcpListener;
 use transaction_pool::{identifier::TransactionOrigin, Pool};
@@ -16,14 +16,14 @@ pub mod error;
 pub mod rpc;
 
 #[derive(Debug)]
-pub struct Node<DB: Database> {
+pub struct Node<DB: DatabaseTrait> {
     pub provider: ProviderFactory<DB>,
     pub pool: Pool<DB>,
     pub consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
     pub network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
 }
 
-impl<DB: Database> Node<DB> {
+impl<DB: DatabaseTrait> Node<DB> {
 
     pub fn handle_tx(&self, tx: SignedTransaction) {
         let tx_hash = tx.hash;
@@ -74,7 +74,7 @@ impl<DB: Database> Node<DB> {
     }
 }
 
-pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
+pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
 
     let mut success = false;  
     match req.method.as_str() {
@@ -106,7 +106,7 @@ pub async fn rpc_handle<DB: Database>(State(node): State<Arc<Node<DB>>>, Json(re
 
                 // broadcast to peer!
                 success = true;
-                result = json!(tx_hash.to_string());
+                result = json!(tx_hash.hash().to_string());
                 node.network.send(NetworkHandleMessage::BroadcastTransaction(signed_tx));
             } else {
                 result = json!("There is no new transaction");
