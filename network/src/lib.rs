@@ -2,7 +2,8 @@ use std::net::{IpAddr, SocketAddr};
 
 use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, types::BlockHash};
 use provider::{DatabaseTrait, ProviderFactory};
-use tokio::{net::{TcpListener, TcpStream}};
+use rand::{rng, seq::{IndexedRandom}};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use transaction_pool::{identifier::TransactionOrigin, Pool};
 
@@ -33,12 +34,31 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
             loop {
                 tokio::select! {
                     // New Peer
-                    Ok((socket, addr)) = this.listener.accept() => {
+                    Ok((mut socket, addr)) = this.listener.accept() => {
                         let peer_len = this.peers.len();
                         if peer_len >= this.config.max_peer_size {
                             println!("#Network# Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
+                            let peers = this.peers.inner().read();
+                            let mut rng = rng();
+                            if let Some(peer) = peers.choose(&mut rng) {
+
+                                let socket_addr = peer.addr().clone();
+                                let msg_string = socket_addr.to_string();
+
+                                tokio::spawn(async move {
+                                    if let Err(e) = socket.write_all(msg_string.as_bytes()).await {
+                                        eprintln!("#Network# Failed to send one-shot msg: {:?}", e);
+                                    }
+                                });
+                                
+                            }
                         } else {
                             println!("New peer: {}", addr);
+
+                            if let Err(e) = socket.write_all("1".as_bytes()).await {
+                                eprintln!("#Network# Failed to send one-shot msg: {:?}", e);
+                            }
+
                             let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
                             peer.send(NetworkHandleMessage::Hello(pid, this.config.address, this.config.port));
                             println!("####DBG####: Send Hello");
@@ -271,14 +291,40 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
             return;
         }
 
-        let addr: SocketAddr = boot_node.socket_addr();
-        match TcpStream::connect(addr).await {
-            Ok(socket) => {
-                println!("Connected to boot node: {}", addr);
-                let _ = self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
-            }
-            Err(e) => {
-                eprintln!("Failed to connect to the boot node {}: {:?}", addr, e);
+        let mut addr: SocketAddr = boot_node.socket_addr();
+        for _ in 0..5 {
+            match TcpStream::connect(addr).await {
+                Ok(mut socket) => {
+                    println!("Connected to node: {}", addr);
+
+                    let mut buf = vec![0u8; 128];
+                    match socket.read(&mut buf).await {
+                        Ok(n) if n > 1 => {
+                            dbg!(&buf, n);
+                            let msg = String::from_utf8_lossy(&buf[..n]);
+                            println!("Boot node redirect: {}", msg);
+
+                            if let Ok(new_addr) = msg.parse::<SocketAddr>() {
+                                addr = new_addr;
+                                continue;
+                            } else {
+                                eprintln!("Invalid redirect address received: {}", msg);
+                            }
+                        }
+                        Ok(_) => {
+                            let _ = self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
+                            break;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read from node {}: {:?}", addr, e);
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect to the node {}: {:?}", addr, e);
+                    break;
+                }
             }
         }
     }
