@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use alloy_primitives::U256;
 use anyhow::bail;
 use libmdbx::orm::{Decodable, Encodable};
@@ -30,7 +28,7 @@ impl Header {
             previous_hash: Default::default(),
             transaction_root: Default::default(),
             state_root: Default::default(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs(),
+            timestamp: 0,
             proposer: COINBASE_ADDR,
             nonce: 0,
             difficulty: 20,

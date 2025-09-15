@@ -5,7 +5,8 @@ use std::{error::Error, fmt::Display};
 pub enum DatabaseError {
     BlockEncodeError,
     DataNotExists,
-    DBError
+    DBError,
+    CannotRemove,
 }
 
 impl Error for DatabaseError {
@@ -18,6 +19,7 @@ impl Display for DatabaseError {
             DatabaseError::BlockEncodeError => write!(f, "failed to encode block"),
             DatabaseError::DataNotExists => write!(f, "requested data does not exist in database"),
             DatabaseError::DBError => write!(f, "database error"),
+            DatabaseError::CannotRemove => write!(f, "Cannot Remove! Only latest can be removed")
         }
     }
 }

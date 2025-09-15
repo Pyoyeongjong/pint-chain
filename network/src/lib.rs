@@ -1,6 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
 
-use primitives::handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage};
+use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, types::BlockHash};
 use provider::{DatabaseTrait, ProviderFactory};
 use tokio::{net::{TcpListener, TcpStream}};
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
@@ -30,9 +30,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
             println!("Network channel starts.");
             let mut this: NetworkManager<DB> = self;
 
-
             loop {
-                
                 tokio::select! {
                     // New Peer
                     Ok((socket, addr)) = this.listener.accept() => {
@@ -99,7 +97,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 println!("#Network# Finished Syncronizing");
                             }
 
-                            NetworkHandleMessage::RequestDataResponse(address, port) => {
+                            NetworkHandleMessage::RequestDataResponse(from, address, port) => {
                                 println!("#Network# RequestDataResponse is occured by {} {}", address, port);
                                 let socket_addr = SocketAddr::from((address, port));
                                 if let Some(peer) = this.peers.inner().read().iter().find(|peer| {
@@ -107,7 +105,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 }) {
                                     // send block datas
                                     let latest = this.provider.db().latest_block_number();
-                                    for i in 1..latest+1 {
+                                    for i in from..latest+1 {
                                         match this.provider.db().get_block(i) {
                                             Ok(block) => peer.send(NetworkHandleMessage::NewPayload(block)),
                                             Err(e) => {
@@ -121,18 +119,17 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 } else {
                                     println!("#Network# Can't find peer! {} {}", address, port);
                                 }
-
                             }
 
                             // request db, pool data to
-                            NetworkHandleMessage::RequestData => {
+                            NetworkHandleMessage::RequestData(from) => {
                                 if this.peers.len() == 0 {
                                     println!("#Network# Can't find peer.");
                                     continue;
                                 }
                                 let peer = &this.peers.inner().read()[0];
 
-                                peer.send(NetworkHandleMessage::RequestDataResponse(this.config.address, this.config.port));
+                                peer.send(NetworkHandleMessage::RequestDataResponse(from,this.config.address, this.config.port));
                                 println!("#Network# Requested Data.");
                             }
 
@@ -172,7 +169,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                                 if !is_boot_node {
                                     println!("#Network# Try to synchronize db and mem-pool.");
-                                    this.networ_handle.send(NetworkHandleMessage::RequestData);
+                                    this.networ_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
 
@@ -183,6 +180,83 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             NetworkHandleMessage::BroadcastTransaction(signed) => {
                                 for peer in this.peers.inner().read().iter() {
                                     peer.send(NetworkHandleMessage::NewTransaction(signed.clone()));
+                                }
+                            }
+                            NetworkHandleMessage::ReorgChainData => {
+                                if this.peers.len() == 0 {
+                                    println!("#Network# Can't find peer.");
+                                    continue;
+                                }
+                                let peer = &this.peers.inner().read()[0];
+                                peer.send(NetworkHandleMessage::RequestChainData(this.config.address, this.config.port));
+                            }
+
+                            NetworkHandleMessage::RequestChainData(ip_addr, port) => {
+                                let socket_addr = SocketAddr::from((ip_addr, port));
+                                let binding = this.peers.inner().read();
+                                let peer = match binding.iter().find(|peer| {
+                                    *peer.addr() == socket_addr
+                                }) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        eprintln!("#Network# Hello: Can't find peer");
+                                        continue;
+                                    }
+                                };
+
+                                let latest_bno = this.provider.db().latest_block_number();
+                                let mut block_hash_vec: Vec<BlockHash> = Vec::new();
+                                let start_bno = if latest_bno >= 16 {
+                                    latest_bno - 16
+                                } else {
+                                    0
+                                };
+
+                                for i in start_bno..latest_bno {
+                                    match this.provider.db().get_header(i) {
+                                        Ok(header) => {
+                                            block_hash_vec.push(header.calculate_hash());
+                                        }
+                                        Err(e) => {
+                                            eprintln!("#Network# RequestChainData: Can't get block hash: {:?}", e);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                peer.send(NetworkHandleMessage::RespondChainDataResult(block_hash_vec.len() as u64, block_hash_vec));
+                            }
+
+                            NetworkHandleMessage::RespondChainDataResult(_len, hash_vec) => {
+                                let mut found = false;
+                                for hash in hash_vec.iter().rev() {
+                                    match this.provider.db().get_block_by_hash(hash.clone()) {
+                                        Ok(block) => {
+                                            found = true;
+                                            let height = block.header().height;
+                                            // delete datas
+                                            if let Err(e) = this.provider.db().remove_datas(height) {
+                                                eprintln!("#Network# RequestChainData: Failed to clean db datas {:?}", e);
+                                                break;
+                                            }
+                                            // then request new data
+                                            this.networ_handle.send(NetworkHandleMessage::RequestData(height+1));
+                                            break;
+                                        }
+                                        Err(_e) => {
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                // reorg chain from scratch
+                                if !found {
+                                    if let Err(e) = this.provider.db().remove_datas(0) {
+                                        eprintln!("#Network# RequestChainData: Failed to clean db datas {:?}", e);
+                                        break;
+                                    }
+                                    // then request new data
+                                    this.networ_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
                         }
@@ -221,7 +295,6 @@ impl<DB: DatabaseTrait + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB>
             .field("config", &self.config).finish()
     }
 }
-
 
 #[derive(Debug)]
 pub struct NoopConsensusHandle;

@@ -52,7 +52,7 @@ impl LaunchContext {
         let (builder_handle, builder_rx) = builder.start_builder();
         // Build Network
         let (tx, rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
-        let rx_stream = UnboundedReceiverStream::new(rx); 
+        let rx_stream = UnboundedReceiverStream::new(rx);
         let network_handle = NetworkHandle::new(tx);
         // Build Miner
         let (miner_handle, miner_rx) = Miner::build_miner();

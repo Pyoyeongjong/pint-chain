@@ -28,7 +28,7 @@ impl Encodable for TxHash {
         self.hash().to_vec()
     }
 }
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlockHash(pub B256);
 impl BlockHash {
     pub fn hash(&self) -> B256 {

@@ -6,11 +6,13 @@ pub enum BlockImportError {
     ProviderError,
     BlockHeightError,
     AlreadyImportedBlock,
+    NotChainedBlock,
 }
 
 pub enum BlockValidatioError {
     DefaultError,
     ExecutionError,
+    NotChainedBlock,
 }
 
 pub enum EncodeError{

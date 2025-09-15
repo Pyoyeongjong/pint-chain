@@ -63,4 +63,25 @@ impl DatabaseTrait for DBImpl {
             DBImpl::InMemoryDB(db) => db.get_latest_block_header(),
         }
     }
+
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<primitives::block::Block, Box<dyn std::error::Error>> {
+        match self {
+            DBImpl::MDBX(db) => db.get_block_by_hash(hash),
+            DBImpl::InMemoryDB(db) => db.get_block_by_hash(hash),
+        }
+    }
+
+    fn remove_datas(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            DBImpl::MDBX(db) => db.remove_datas(height),
+            DBImpl::InMemoryDB(db) => db.remove_datas(height),
+        }
+    }
+
+    fn remove_data(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            DBImpl::MDBX(db) => db.remove_data(height),
+            DBImpl::InMemoryDB(db) => db.remove_data(height),
+        }
+    }
 }

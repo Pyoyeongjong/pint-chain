@@ -99,6 +99,17 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         }
     }
 
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Block, Box<dyn std::error::Error>> {
+        let blockchain = self.blockchain.read();
+        for (_heignt, block) in blockchain.iter() {
+            let tmp_hash = block.header().calculate_hash();
+            if hash == tmp_hash {
+                return Ok(block.clone())
+            }
+        }
+        Err(Box::new(DatabaseError::DataNotExists))
+    }
+
     fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
@@ -117,7 +128,6 @@ impl DatabaseTrait for Arc<InMemoryDB> {
     
     fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World, block: Block) 
         -> Result<(), Box<dyn std::error::Error>>{
-        dbg!(&new_account_state);
         let mut latest = self.latest.write();
         *latest += 1;
         let mut state = self.accounts.write();
@@ -129,6 +139,25 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         let mut blockchain = self.blockchain.write();
         blockchain.insert(*latest, block);
         println!("DB updated {}", latest);
+
+        Ok(())
+    }
+    
+    fn remove_data(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
+        let latest = self.latest.read();
+        if *latest != height {
+            return Err(Box::new(DatabaseError::CannotRemove));
+        }
+        let cur = *latest;
+
+        let mut accounts = self.accounts.write();
+        accounts.remove(&cur);
+        let mut field = self.field.write();
+        field.remove(&cur);
+        let mut blockchain = self.blockchain.write();
+        blockchain.remove(&cur);
+        let mut latest = self.latest.write();
+        *latest -= 1;
 
         Ok(())
     }

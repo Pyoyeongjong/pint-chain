@@ -142,8 +142,13 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 if let Err(e) = importer.import_new_block(block.clone()) {
                                     match e {
                                         BlockImportError::BlockHeightError => {
-                                            eprintln!("[Consensus] Failed to import new block due to block heignt: {:?}. Try to update new datas.", e);
-                                            network.send(NetworkHandleMessage::RequestData);
+                                            eprintln!("[Consensus] Failed to import new block due to block height: {:?}. Try to update new datas.", e);
+                                            // network.send(NetworkHandleMessage::RequestData);
+                                            continue;
+                                        }
+                                        BlockImportError::NotChainedBlock => {
+                                            eprintln!("[Consensus] Failed to import new block due to block_hash: {:?}. Try to update new datas.", e);
+                                            // network.send(NetworkHandleMessage::RequestData);
                                             continue;
                                         }
                                         BlockImportError::AlreadyImportedBlock => {

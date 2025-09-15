@@ -205,7 +205,21 @@ impl DatabaseTrait for MDBX {
                 return Err(Box::new(DatabaseError::DBError));
             }
         }
+    }
 
+    fn get_block_by_hash(&self, hash: BlockHash) -> Result<Block, Box<dyn std::error::Error>> {
+        let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
+        match tx.get::<BlockByHash>(hash) {
+            Ok(res) => {
+                match res {
+                    Some(block_no) => self.get_block(block_no),
+                    None => Err(Box::new(DatabaseError::DataNotExists)),
+                }
+            }
+            Err(_e) => {
+                return Err(Box::new(DatabaseError::DBError));
+            }
+        }
     }
 
     fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
@@ -253,6 +267,34 @@ impl DatabaseTrait for MDBX {
     fn get_latest_block_header(&self) -> primitives::block::Header {
         let latest_bno = self.latest_block_number();
         self.get_header(latest_bno).unwrap()
+    }
+    
+    fn remove_data(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
+        let latest = self.latest_block_number();
+        if latest != height {
+            return Err(Box::new(DatabaseError::CannotRemove));
+        }
+
+        let tx= self.inner.begin_readwrite().map_err(|_| DatabaseError::DBError)?;
+        let start_key = DBAdress::new(Address::min(), height);
+        let mut cursor= tx.cursor::<Basic>().map_err(|_| DatabaseError::DBError)?;
+        cursor.seek_closest(start_key).map_err(|_| DatabaseError::DBError)?;
+
+        while let Ok(Some((key, _account)))= cursor.next() {
+            if key.block_no == height {
+                cursor.delete_current().map_err(|_| DatabaseError::DBError)?;
+            }
+        }
+        let block = self.get_block(height).map_err(|_| DatabaseError::DBError)?;
+        tx.delete::<Blocks>(height, None).map_err(|_| DatabaseError::DBError)?;
+        tx.delete::<BlockByHash>(block.header().calculate_hash(), None).map_err(|_| DatabaseError::DBError)?;
+        let txs = block.body;
+        for signed_tx in txs.iter() {
+            tx.delete::<Transactions>(signed_tx.hash, None).map_err(|_| DatabaseError::DBError)?;
+        }
+        tx.delete::<States>(height, None).map_err(|_| DatabaseError::DBError)?;
+
+        Ok(())
     }
 }
 

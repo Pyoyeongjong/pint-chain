@@ -26,7 +26,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     boot_node: bool,
 
-    #[arg(short, long, default_value_t = String::from("boot_node"))]
+    #[arg(short, long, default_value_t = String::from("boot_node"))]                                
     name: String,
 }
 
@@ -96,8 +96,6 @@ async fn main() {
 
         node.pool.print_pool();
     }
-
-    
 
     // Starts RPC Server
     // Graceful shutdown
