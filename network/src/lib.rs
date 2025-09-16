@@ -127,7 +127,9 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                     let latest = this.provider.db().latest_block_number();
                                     for i in from..latest+1 {
                                         match this.provider.db().get_block(i) {
-                                            Ok(block) => peer.send(NetworkHandleMessage::NewPayload(block)),
+                                            Ok(block) => if let Some(bloc) = block {
+                                                peer.send(NetworkHandleMessage::NewPayload(bloc));
+                                            }
                                             Err(e) => {
                                                 eprintln!("#Network# Failed to get block in db: {:?}", e);
                                                 break;
@@ -235,7 +237,9 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 for i in start_bno..latest_bno {
                                     match this.provider.db().get_header(i) {
                                         Ok(header) => {
-                                            block_hash_vec.push(header.calculate_hash());
+                                            if let Some(headr) = header {
+                                                block_hash_vec.push(headr.calculate_hash());
+                                            } 
                                         }
                                         Err(e) => {
                                             eprintln!("#Network# RequestChainData: Can't get block hash: {:?}", e);
@@ -251,7 +255,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 let mut found = false;
                                 for hash in hash_vec.iter().rev() {
                                     match this.provider.db().get_block_by_hash(hash.clone()) {
-                                        Ok(block) => {
+                                        Ok(Some(block)) => {
                                             found = true;
                                             let height = block.header().height;
                                             // delete datas
@@ -262,6 +266,9 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                             // then request new data
                                             this.networ_handle.send(NetworkHandleMessage::RequestData(height+1));
                                             break;
+                                        }
+                                        Ok(None) => {
+                                            continue;
                                         }
                                         Err(_e) => {
                                             continue;

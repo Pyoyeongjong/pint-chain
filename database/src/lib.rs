@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use primitives::{block::{Block, Header}, transaction::SignedTransaction};
+
 use crate::{immemorydb::InMemoryDB, mdbx::MDBX, traits::DatabaseTrait};
 
 pub mod traits;
@@ -35,14 +37,14 @@ impl DatabaseTrait for DBImpl {
         }
     }
 
-    fn get_block(&self, block_no: u64) -> Result<primitives::block::Block, Box<dyn std::error::Error>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         match self {
             DBImpl::MDBX(db) => db.get_block(block_no),
             DBImpl::InMemoryDB(db) => db.get_block(block_no),
         }
     }
 
-    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
         match self {
             DBImpl::MDBX(db) => db.get_header(block_no),
             DBImpl::InMemoryDB(db) => db.get_header(block_no),
@@ -64,7 +66,7 @@ impl DatabaseTrait for DBImpl {
         }
     }
 
-    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<primitives::block::Block, Box<dyn std::error::Error>> {
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         match self {
             DBImpl::MDBX(db) => db.get_block_by_hash(hash),
             DBImpl::InMemoryDB(db) => db.get_block_by_hash(hash),
@@ -82,6 +84,13 @@ impl DatabaseTrait for DBImpl {
         match self {
             DBImpl::MDBX(db) => db.remove_data(height),
             DBImpl::InMemoryDB(db) => db.remove_data(height),
+        }
+    }
+    
+    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+        match self {
+            DBImpl::MDBX(db) => db.get_transaction_by_hash(hash),
+            DBImpl::InMemoryDB(db) => db.get_transaction_by_hash(hash),
         }
     }
 }

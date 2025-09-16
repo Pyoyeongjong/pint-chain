@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::{Path, PathBuf}, sync::Arc};
 
 use libmdbx::{orm::{Database, DatabaseChart, Decodable, Encodable}, table, table_info};
 use once_cell::sync::Lazy;
-use primitives::{block::Block, types::{ Account, Address, BlockHash, TxHash, U256 }, world::World};
+use primitives::{block::{Block, Header}, transaction::SignedTransaction, types::{ Account, Address, BlockHash, TxHash, U256 }, world::World};
 
 use crate::{error::DatabaseError, traits::DatabaseTrait};
 
@@ -192,13 +192,13 @@ impl DatabaseTrait for MDBX {
         Ok((Some(accounts), world))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Block, Box<dyn std::error::Error>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
         match tx.get::<Blocks>(block_no) {
             Ok(res) => {
                 match res {
-                    Some(block) => return Ok(block),
-                    None => Err(Box::new(DatabaseError::DataNotExists)),
+                    Some(block) => return Ok(Some(block)),
+                    None => return Ok(None),
                 }
             }
             Err(_e) => {
@@ -207,7 +207,7 @@ impl DatabaseTrait for MDBX {
         }
     }
 
-    fn get_block_by_hash(&self, hash: BlockHash) -> Result<Block, Box<dyn std::error::Error>> {
+    fn get_block_by_hash(&self, hash: BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
         match tx.get::<BlockByHash>(hash) {
             Ok(res) => {
@@ -222,11 +222,13 @@ impl DatabaseTrait for MDBX {
         }
     }
 
-    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
-
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
         match self.get_block(block_no) {
             Ok(block) => {
-                Ok(block.header().clone())
+                match block {
+                    Some(block) => Ok(Some(block.header().clone())),
+                    None => Ok(None),
+                }
             }
             Err(e) => {
                 Err(e)
@@ -266,7 +268,8 @@ impl DatabaseTrait for MDBX {
 
     fn get_latest_block_header(&self) -> primitives::block::Header {
         let latest_bno = self.latest_block_number();
-        self.get_header(latest_bno).unwrap()
+        self.get_header(latest_bno).unwrap().unwrap()
+
     }
     
     fn remove_data(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
@@ -285,7 +288,10 @@ impl DatabaseTrait for MDBX {
                 cursor.delete_current().map_err(|_| DatabaseError::DBError)?;
             }
         }
-        let block = self.get_block(height).map_err(|_| DatabaseError::DBError)?;
+        let block = match self.get_block(height).map_err(|_| DatabaseError::DBError)? {
+            Some(block) => block,
+            None => return Ok(()),
+        };
         tx.delete::<Blocks>(height, None).map_err(|_| DatabaseError::DBError)?;
         tx.delete::<BlockByHash>(block.header().calculate_hash(), None).map_err(|_| DatabaseError::DBError)?;
         let txs = block.body;
@@ -295,6 +301,27 @@ impl DatabaseTrait for MDBX {
         tx.delete::<States>(height, None).map_err(|_| DatabaseError::DBError)?;
 
         Ok(())
+    }
+    
+    fn get_transaction_by_hash(&self, hash: TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+        let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
+        let block_no = match tx.get::<Transactions>(hash).map_err(|_| DatabaseError::DBError)? {
+            Some(bno) => bno,
+            None => return Ok(None),
+        };
+
+        let block = match self.get_block(block_no)? {
+            Some(block) => block,
+            None => return Ok(None),
+        };
+
+        let txs = block.body;
+        for tx in txs.iter() {
+            if tx.hash == hash {
+                return Ok(Some((tx.clone(), block_no)));
+            }
+        }
+        Ok(None)
     }
 }
 

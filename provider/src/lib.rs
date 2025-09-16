@@ -24,7 +24,12 @@ impl<DB: DatabaseTrait + Clone> ProviderFactory<DB> {
             return prev_difficulty;
         }
         let prev_header = match self.db().get_header(latest_header.height - 1) {
-            Ok(header) => header,
+            Ok(header) => match header {
+                Some(header) => header,
+                None => {
+                    return prev_difficulty
+                }
+            }
             Err(_e) => return prev_difficulty,
         };
         let time = latest_header.timestamp - prev_header.timestamp;

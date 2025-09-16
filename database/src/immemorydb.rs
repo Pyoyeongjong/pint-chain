@@ -1,7 +1,7 @@
 use std::{collections::{BTreeMap, HashMap}, sync::Arc};
 
 use parking_lot::{RwLock};
-use primitives::{block::Block, types::{Account, Address, U256}, world::World};
+use primitives::{block::{Block, Header}, transaction::SignedTransaction, types::{Account, Address, U256}, world::World};
 
 use crate::{error::DatabaseError, traits::DatabaseTrait};
 
@@ -90,30 +90,30 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         Ok((account_base, field_base))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Block, Box<dyn std::error::Error>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
-            Ok(block.clone())
+            Ok(Some(block.clone()))
         } else {
             Err(Box::new(DatabaseError::DataNotExists))
         }
     }
 
-    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Block, Box<dyn std::error::Error>> {
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
         let blockchain = self.blockchain.read();
         for (_heignt, block) in blockchain.iter() {
             let tmp_hash = block.header().calculate_hash();
             if hash == tmp_hash {
-                return Ok(block.clone())
+                return Ok(Some(block.clone()))
             }
         }
         Err(Box::new(DatabaseError::DataNotExists))
     }
 
-    fn get_header(&self, block_no: u64) -> Result<primitives::block::Header, Box<dyn std::error::Error>> {
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
-            Ok(block.header().clone())
+            Ok(Some(block.header().clone()))
         } else {
             Err(Box::new(DatabaseError::DataNotExists))
         }
@@ -160,5 +160,17 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         *latest -= 1;
 
         Ok(())
+    }
+    
+    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+        let blockchain = self.blockchain.read();
+        for (bno, block) in blockchain.iter() {
+            for tx in block.body.iter() {
+                if hash == tx.hash {
+                    return Ok(Some((tx.clone(), *bno)));
+                }
+            }
+        }
+        Ok(None)
     }
 }
