@@ -188,8 +188,8 @@ mod tests {
     #[test]
     fn make_random_address() {
         for _ in 0..5 {
-            let addr = Address::random();
-            dbg!(addr.get_addr_hex());
+            let _addr = Address::random();
+            // dbg!(addr.get_addr_hex());
         }
     }
 }

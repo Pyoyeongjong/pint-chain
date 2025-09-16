@@ -298,19 +298,23 @@ mod tests {
         (signing_key, address)
     }
 
+    // 28dcb1338b900419cd613a8fb273ae36e7ec2b1d pint
+    // 0534501c34f5a0f3fa43dc5d78e619be7edfa21a chain
+    // 08041f667c366ee714d6cbefe2a8477ad7488f10 apple
+    // b2aaaf07a29937c3b833dca1c9659d98a9569070 banana
     #[test]
     fn test_primitives_encode_and_decode_transaction() {
-        let (signing_key, sender) = create_key_pairs("chain".as_bytes());
+        let (signing_key, sender) = create_key_pairs("pint".as_bytes());
         let sender = Address::from_byte(sender.try_into().unwrap());
         dbg!(&sender.get_addr_hex());
 
-        let (_, receiver) = create_key_pairs("banana".as_bytes());
+        let (_, receiver) = create_key_pairs("apple".as_bytes());
         let receiver = Address::from_byte(receiver.try_into().unwrap());
         dbg!(receiver.get_addr_hex());
 
         let tx = Transaction {
             chain_id: 0,
-            nonce: 0,
+            nonce: 2,
             to: receiver,
             fee: 5,
             value: U256::from(1000),
