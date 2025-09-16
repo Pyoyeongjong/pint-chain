@@ -1,8 +1,9 @@
 use std::{fmt::Debug, net::{IpAddr, Ipv4Addr, SocketAddr}};
 
 use alloy_primitives::{B256};
+use colored::Colorize;
 
-use crate::{block::{Block, Header, Payload, PayloadHeader}, error::DecodeError, transaction::{Recovered, SignedTransaction}, types::BlockHash};
+use crate::{block::{Block, Header, Payload, PayloadHeader}, error::DecodeError, transaction::{Recovered, SignedTransaction, Tx}, types::BlockHash};
 
 pub trait Handle: Send + Sync + std::fmt::Debug{
     type Msg: Send + Sync;
@@ -319,10 +320,183 @@ impl NetworkHandleMessage {
     }
 }
 
+use std::fmt;
+
+impl fmt::Display for NetworkHandleMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NetworkHandleMessage::PeerConnectionTest { peer } => {
+                write!(
+                    f,
+                    "{} {} {}",
+                    "[Network]".bold().green(),
+                    "PeerConnectionTest".bold().yellow(),
+                    peer.to_string().cyan()
+                )
+            }
+            NetworkHandleMessage::NewTransaction(tx) => {
+                write!(
+                    f,
+                    "{} {} hash: {:?}",
+                    "[Network]".bold().green(),
+                    "NewTransaction".bold().yellow(),
+                    tx.hash
+                )
+            }
+            NetworkHandleMessage::NewPayload(block) => {
+                write!(
+                    f,
+                    "{} {} height: {}, hash: {:?}",
+                    "[Network]".bold().green(),
+                    "NewPayload".bold().yellow(),
+                    block.header.height.to_string().cyan(),
+                    block.header().calculate_hash()
+                )
+            }
+            NetworkHandleMessage::BroadcastBlock(block) => {
+                write!(
+                    f,
+                    "{} {} height: {}, hash: {:?}",
+                    "[Network]".bold().green(),
+                    "BroadcastBlock".bold().yellow(),
+                    block.header.height.to_string().cyan(),
+                    block.header().calculate_hash()
+                )
+            }
+            NetworkHandleMessage::RequestDataResponse(num, ip, port) => {
+                write!(
+                    f,
+                    "{} {} block_no: {}, addr: {}:{}",
+                    "[Network]".bold().green(),
+                    "RequestDataResponse".bold().yellow(),
+                    num.to_string().cyan(),
+                    ip,
+                    port
+                )
+            }
+            NetworkHandleMessage::RequestData(num) => {
+                write!(
+                    f,
+                    "{} {} block_no: {}",
+                    "[Network]".bold().green(),
+                    "RequestData".bold().yellow(),
+                    num.to_string().cyan()
+                )
+            }
+            NetworkHandleMessage::RequestDataResponseFinished => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[Network]".bold().green(),
+                    "RequestDataResponseFinished".bold().yellow()
+                )
+            }
+            NetworkHandleMessage::HandShake(id, ip, port) => {
+                write!(
+                    f,
+                    "{} {} id: {}, addr: {}:{}",
+                    "[Network]".bold().green(),
+                    "HandShake".bold().yellow(),
+                    id.to_string().cyan(),
+                    ip,
+                    port
+                )
+            }
+            NetworkHandleMessage::Hello(id, ip, port) => {
+                write!(
+                    f,
+                    "{} {} id: {}, addr: {}:{}",
+                    "[Network]".bold().green(),
+                    "Hello".bold().yellow(),
+                    id.to_string().cyan(),
+                    ip,
+                    port
+                )
+            }
+            NetworkHandleMessage::RemovePeer(id) => {
+                write!(
+                    f,
+                    "{} {} id: {}",
+                    "[Network]".bold().green(),
+                    "RemovePeer".bold().yellow(),
+                    id.to_string().red()
+                )
+            }
+            NetworkHandleMessage::BroadcastTransaction(tx) => {
+                write!(
+                    f,
+                    "{} {} hash: {:?}",
+                    "[Network]".bold().green(),
+                    "BroadcastTransaction".bold().yellow(),
+                    tx.hash
+                )
+            }
+            NetworkHandleMessage::ReorgChainData => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[Network]".bold().green(),
+                    "ReorgChainData".red().bold()
+                )
+            }
+            NetworkHandleMessage::RequestChainData(ip, port) => {
+                write!(
+                    f,
+                    "{} {} addr: {}:{}",
+                    "[Network]".bold().green(),
+                    "RequestChainData".bold().yellow(),
+                    ip,
+                    port
+                )
+            }
+            NetworkHandleMessage::RespondChainDataResult(num, hashes) => {
+                write!(
+                    f,
+                    "{} {} start_no: {}, {} hashes",
+                    "[Network]".bold().green(),
+                    "RespondChainDataResult".bold().yellow(),
+                    num.to_string().cyan(),
+                    hashes.len().to_string().magenta()
+                )
+            }
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub enum ConsensusHandleMessage {
     ImportBlock(Block),
     NewTransaction(Recovered),
+}
+
+impl fmt::Display for ConsensusHandleMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConsensusHandleMessage::ImportBlock(block) => {
+                write!(
+                    f,
+                    "{} {} height: {}, hash: {:?}",
+                    "[Consensus]".bold().green(),
+                    "ImportBlock".bold().yellow(),
+                    block.header.height.to_string().cyan(),
+                    block.header.calculate_hash()
+                )
+            }
+            ConsensusHandleMessage::NewTransaction(tx) => {
+                write!(
+                    f,
+                    "{} {} hash: {:?}, from: {:?}, to: {:?}, value: {}",
+                    "[Consensus]".bold().green(),
+                    "NewTransaction".bold().yellow(),
+                    tx.hash(),
+                    tx.signer().get_addr_hex().cyan(),
+                    tx.tx().tx.to().get_addr_hex().bright_blue(),
+                    tx.tx().tx.value().to_string().magenta()
+                )
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -330,11 +504,61 @@ pub enum PayloadBuilderHandleMessage {
     BuildPayload,
     Stop,
 }
+
+impl fmt::Display for PayloadBuilderHandleMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PayloadBuilderHandleMessage::BuildPayload => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[PayloadBuilderHandle]".bold().green(),
+                    "BuildPayload".bold().yellow()
+                )
+            }
+            PayloadBuilderHandleMessage::Stop => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[PayloadBuilderHandle]".bold().green(),
+                    "Stop".red().bold()
+                )
+            }
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub enum PayloadBuilderResultMessage {
     Payload(Payload),
     PoolIsEmpty,
 }
+
+impl fmt::Display for PayloadBuilderResultMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PayloadBuilderResultMessage::Payload(payload) => {
+                writeln!(
+                    f,
+                    "{} {}",
+                    "[PayloadBuilderResult]".bold().green(),
+                    "New Payload Built".bold().yellow()
+                )?;
+                write!(f, "{}", payload) // Payload에 Display 이미 구현되어 있다고 가정
+            }
+            PayloadBuilderResultMessage::PoolIsEmpty => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[PayloadBuilderResult]".bold().green(),
+                    "Pool is empty, no payload created".red().bold()
+                )
+            }
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum MinerHandleMessage {
@@ -344,4 +568,42 @@ pub enum MinerHandleMessage {
 #[derive(Debug)]
 pub enum MinerResultMessage {
     MiningSuccess(Header),
+}
+
+impl fmt::Display for MinerHandleMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MinerHandleMessage::NewPayload(header) => {
+                write!(
+                    f,
+                    "{} {} height: {}, prev_hash: {:?}, difficulty: {}, timestamp: {}",
+                    "[MinerHandle]".bold().green(),
+                    "NewPayload".bold().yellow(),
+                    header.height.to_string().cyan(),
+                    header.previous_hash,
+                    header.difficulty.to_string().magenta(),
+                    header.timestamp.to_string().white()
+                )
+            }
+        }
+    }
+}
+
+impl fmt::Display for MinerResultMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MinerResultMessage::MiningSuccess(header) => {
+                write!(
+                    f,
+                    "{} {} height: {}, hash: {:?}, difficulty: {}, timestamp: {}",
+                    "[MinerResult]".bold().green(),
+                    "MiningSuccess".bold().yellow(),
+                    header.height.to_string().cyan(),
+                    header.calculate_hash(),
+                    header.difficulty.to_string().magenta(),
+                    header.timestamp.to_string().white()
+                )
+            }
+        }
+    }
 }

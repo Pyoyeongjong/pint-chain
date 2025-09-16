@@ -28,11 +28,11 @@ impl Miner {
 
     pub fn start_channel(self) {
         tokio::spawn(async move{
-            println!("Miner chainnel starts.");
+            println!("[ Miner ] Miner channel starts.");
             let Miner { mut miner_rx, consensus_tx, epoch, worker } = self;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
-                    println!("Miner received message: {:?}", msg);
+                    println!("[ Miner ] Miner received message: {}", msg);
                     match msg {
                         MinerHandleMessage::NewPayload(payload_header) => {
                             // spawn payload mining task

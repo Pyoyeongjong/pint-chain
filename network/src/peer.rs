@@ -19,7 +19,7 @@ impl Peer {
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
-        println!("#Network# send {:?} with {:?}", self.addr, msg);
+        println!("[ Network ] send {:?} with {}", self.addr, msg);
         if let Err(e) = self.tx.send(msg) {
             eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
         }

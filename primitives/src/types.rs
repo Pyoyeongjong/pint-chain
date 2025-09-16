@@ -180,16 +180,3 @@ impl Encodable for Account {
         res
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::types::Address;
-
-    #[test]
-    fn make_random_address() {
-        for _ in 0..5 {
-            let _addr = Address::random();
-            // dbg!(addr.get_addr_hex());
-        }
-    }
-}

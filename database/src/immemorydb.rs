@@ -138,7 +138,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
 
         let mut blockchain = self.blockchain.write();
         blockchain.insert(*latest, block);
-        println!("DB updated {}", latest);
+        println!("[ DB ] DB updated new block. Height: {}", latest);
 
         Ok(())
     }

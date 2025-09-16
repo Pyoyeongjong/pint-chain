@@ -28,7 +28,7 @@ pub struct NetworkManager<DB: DatabaseTrait> {
 impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
     fn start_loop(self, is_boot_node: bool) {
         tokio::spawn(async move {
-            println!("Network channel starts.");
+            println!("[ Init ] Network channel starts.");
             let mut this: NetworkManager<DB> = self;
 
             loop {
@@ -37,7 +37,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                     Ok((mut socket, addr)) = this.listener.accept() => {
                         let peer_len = this.peers.len();
                         if peer_len >= this.config.max_peer_size {
-                            println!("#Network# Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
+                            println!("[ Network ] Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
                             let peers = this.peers.inner().read();
                             let mut rng = rng();
                             if let Some(peer) = peers.choose(&mut rng) {
@@ -47,7 +47,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                                 tokio::spawn(async move {
                                     if let Err(e) = socket.write_all(msg_string.as_bytes()).await {
-                                        eprintln!("#Network# Failed to send one-shot msg: {:?}", e);
+                                        eprintln!("[ Network ] Failed to send one-shot msg: {:?}", e);
                                     }
                                 });
                                 
@@ -56,24 +56,23 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             println!("New peer: {}", addr);
 
                             if let Err(e) = socket.write_all("1".as_bytes()).await {
-                                eprintln!("#Network# Failed to send one-shot msg: {:?}", e);
+                                eprintln!("[ Network ] Failed to send one-shot msg: {:?}", e);
                             }
 
                             let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
                             peer.send(NetworkHandleMessage::Hello(pid, this.config.address, this.config.port));
-                            println!("####DBG####: Send Hello");
                         }
                     }
 
                     // NetworkHandle Message
                     Some(msg) = this.from_handle_rx.next() => {
-                        println!("#Network# received message: {:?}", msg);
+                        println!("[ Network ] received message: {}", msg);
                         match msg {
                             NetworkHandleMessage::PeerConnectionTest{peer: addr} => {
                                 let peer = match this.peers.find_peer(addr) {
                                     Some(peer) => peer,
                                     None => {
-                                        eprintln!("#Network# Can't find this peer. {:?}", addr);
+                                        eprintln!("[ Network ] Can't find this peer. {:?}", addr);
                                         continue;
                                     }
                                 };
@@ -84,7 +83,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 let recovered = match signed.clone().into_recovered() {
                                     Ok(recovered) => recovered,
                                     Err(e) => {
-                                        eprintln!("#Network# NewTransaction Recover Error: {:?}", e);
+                                        eprintln!("[ Network ] NewTransaction Recover Error: {:?}", e);
                                         continue;
                                     }
                                 };
@@ -98,7 +97,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                         }
                                     }
                                     Err(pool_error) => {
-                                        eprintln!("#Network# New Transaction Pool Error: {:?}", pool_error);
+                                        eprintln!("[ Network ] New Transaction Pool Error: {:?}", pool_error);
                                         continue;
                                     }
                                 }
@@ -114,11 +113,11 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             }
 
                             NetworkHandleMessage::RequestDataResponseFinished => {
-                                println!("#Network# Finished Syncronizing");
+                                println!("[ Network ] Finished Syncronizing");
                             }
 
                             NetworkHandleMessage::RequestDataResponse(from, address, port) => {
-                                println!("#Network# RequestDataResponse is occured by {} {}", address, port);
+                                println!("[ Network ] RequestDataResponse is occured by {} {}", address, port);
                                 let socket_addr = SocketAddr::from((address, port));
                                 if let Some(peer) = this.peers.inner().read().iter().find(|peer| {
                                     *peer.addr() == socket_addr
@@ -131,28 +130,28 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                                 peer.send(NetworkHandleMessage::NewPayload(bloc));
                                             }
                                             Err(e) => {
-                                                eprintln!("#Network# Failed to get block in db: {:?}", e);
+                                                eprintln!("[ Network ] Failed to get block in db: {:?}", e);
                                                 break;
                                             }
                                         }
                                     }
-                                    println!("#Network# Block Sync Ok! {} {}", address, port);
+                                    println!("[ Network ] Block Sync Ok! {} {}", address, port);
                                     // peer.send(NetworkHandleMessage::RequestDataResponseFinished);
                                 } else {
-                                    println!("#Network# Can't find peer! {} {}", address, port);
+                                    println!("[ Network ] Can't find peer! {} {}", address, port);
                                 }
                             }
 
                             // request db, pool data to
                             NetworkHandleMessage::RequestData(from) => {
                                 if this.peers.len() == 0 {
-                                    println!("#Network# Can't find peer.");
+                                    println!("[ Network ] Can't find peer.");
                                     continue;
                                 }
                                 let peer = &this.peers.inner().read()[0];
 
                                 peer.send(NetworkHandleMessage::RequestDataResponse(from,this.config.address, this.config.port));
-                                println!("#Network# Requested Data.");
+                                println!("[ Network ] Requested Data.");
                             }
 
                             NetworkHandleMessage::HandShake(pid, address, port) => {
@@ -164,13 +163,13 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 }) {
                                     Some(peer) => peer,
                                     None => {
-                                        eprintln!("#Network# Handshake: Can't find peer");
+                                        eprintln!("[ Network ] Handshake: Can't find peer");
                                         continue;
                                     }
                                 };
                                 peer.update_addr(socket_addr);
                 
-                                println!("#Network# Handshake completed with {:?}", socket_addr);
+                                println!("[ Network ] Handshake completed with {:?}", socket_addr);
                                 
                             }
 
@@ -182,15 +181,14 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 }) {
                                     Some(peer) => peer,
                                     None => {
-                                        eprintln!("#Network# Hello: Can't find peer");
+                                        eprintln!("[ Network ] Hello: Can't find peer");
                                         continue;
                                     }
                                 };
                                 peer.send(NetworkHandleMessage::HandShake(pid, this.config.address, this.config.port));
-                                println!("####DBG####: Send HandShake");
 
                                 if !is_boot_node {
-                                    println!("#Network# Try to synchronize db and mem-pool.");
+                                    println!("[ Network ] Try to synchronize db and mem-pool.");
                                     this.networ_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
@@ -206,7 +204,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             }
                             NetworkHandleMessage::ReorgChainData => {
                                 if this.peers.len() == 0 {
-                                    println!("#Network# Can't find peer.");
+                                    println!("[ Network ] Can't find peer.");
                                     continue;
                                 }
                                 let peer = &this.peers.inner().read()[0];
@@ -221,7 +219,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 }) {
                                     Some(peer) => peer,
                                     None => {
-                                        eprintln!("#Network# Hello: Can't find peer");
+                                        eprintln!("[ Network ] Hello: Can't find peer");
                                         continue;
                                     }
                                 };
@@ -242,7 +240,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                             } 
                                         }
                                         Err(e) => {
-                                            eprintln!("#Network# RequestChainData: Can't get block hash: {:?}", e);
+                                            eprintln!("[ Network ] RequestChainData: Can't get block hash: {:?}", e);
                                             break;
                                         }
                                     }
@@ -260,7 +258,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                             let height = block.header().height;
                                             // delete datas
                                             if let Err(e) = this.provider.db().remove_datas(height) {
-                                                eprintln!("#Network# RequestChainData: Failed to clean db datas {:?}", e);
+                                                eprintln!("[ Network ] RequestChainData: Failed to clean db datas {:?}", e);
                                                 break;
                                             }
                                             // then request new data
@@ -279,7 +277,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 // reorg chain from scratch
                                 if !found {
                                     if let Err(e) = this.provider.db().remove_datas(0) {
-                                        eprintln!("#Network# RequestChainData: Failed to clean db datas {:?}", e);
+                                        eprintln!("[ Network ] RequestChainData: Failed to clean db datas {:?}", e);
                                         break;
                                     }
                                     // then request new data
@@ -307,7 +305,6 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                     let mut buf = vec![0u8; 128];
                     match socket.read(&mut buf).await {
                         Ok(n) if n > 1 => {
-                            dbg!(&buf, n);
                             let msg = String::from_utf8_lossy(&buf[..n]);
                             println!("Boot node redirect: {}", msg);
 

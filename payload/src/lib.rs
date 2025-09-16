@@ -44,19 +44,18 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
         orchestration_tx: UnboundedSender<PayloadBuilderResultMessage>
     ) {
         tokio::spawn(async move {
-            println!("@PayloadBuilder@ channel starts.");
+            println!("[ Payload Builder ] channel starts.");
             let PayloadBuilder { address, provider, pool } = self;
 
             loop {
                 if let Some(msg) = to_manager_rx.recv().await {
-                    println!("@PayloadBuilder@ received message: {:?}", msg);
+                    println!("[ Payload Builder ] received message: {}", msg);
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
-                            println!("@PayloadBuilder@ Accepted message");
                             pool.print_pool();
                             if pool.check_pending_pool_len() == 0 {
                                 if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::PoolIsEmpty) {
-                                    eprintln!("@PayloadBuilder@ Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                    eprintln!("[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}", e);
                                 };
                                 continue;
                             }
@@ -70,11 +69,11 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
                                 match default_paylod(BuildArguments::new(address, parent_header, difficulty), provider, pool).await {
                                     Ok(payload) => {
                                         if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::Payload(payload)) {
-                                            eprintln!("@PayloadBuilder@ Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                            eprintln!("[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}", e);
                                         };
                                     }
                                     Err(e) => {
-                                        eprintln!("@PayloadBuilder@ Failed to make new payload {:?}", e);
+                                        eprintln!("[ Payload Builder ] Failed to make new payload {:?}", e);
                                     }
                                 }
                                 
@@ -119,7 +118,6 @@ async fn default_paylod<DB: DatabaseTrait>(
     while let Some(pool_tx) = best_txs.next() {
         match executor.execute_transaction(&pool_tx.transaction) {
             Ok(receipt) => {
-                println!("{:?}", receipt);
                 if receipt.success {
                     total_fee += U256::from(receipt.fee);
                     body.push(pool_tx.tx().tx().clone());

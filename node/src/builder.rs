@@ -38,10 +38,10 @@ impl LaunchContext {
         // Build Provider
 
         let db = if network_config.boot_node.is_boot_node() {
-            println!("DB Launched with MDBX.");
+            println!("[ DB ] DB Launched with MDBX.");
             DBImpl::MDBX(MDBX::genesis_state())
         } else {
-            println!("DB Launched with InMemoryDB.");
+            println!("[ DB ] DB Launched with InMemoryDB.");
             DBImpl::InMemoryDB(Arc::new(InMemoryDB::genesis_state()))
         };
         let provider = ProviderFactory::new(db);

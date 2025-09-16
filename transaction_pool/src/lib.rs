@@ -72,10 +72,10 @@ impl<DB: DatabaseTrait> Pool<DB> {
         self.print_pool();
     }
 
-    // for dbg!
+    // for debug!
     pub fn print_pool(&self) {
         let pool = self.pool.pool().read();
-        println!("All: {}, Pending: {}, Parked: {}",
+        println!("[ Pool ] All: {}, Pending: {}, Parked: {}",
             pool.all_transaction.len(),
             pool.pending_pool.len(),
             pool.parked_pool.len()

@@ -418,7 +418,6 @@ mod tests {
         assert_eq!(0, pool.parked_pool.len());
 
         let _res = pool.add_transaction(vtx, on_chain_balance, on_chain_nonce);
-        // dbg!(_res.unwrap());
 
         assert_eq!(1, pool.pending_pool.len());
         assert_eq!(0, pool.parked_pool.len());

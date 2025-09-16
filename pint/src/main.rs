@@ -61,8 +61,7 @@ async fn main() {
         }
     };
 
-    // dbg!(node);
-    println!("({}) PintChain Node launcing Ok.", args.name);
+    println!("[ Name: {} ] PintChain Node launcing Ok.", args.name);
 
     if args.boot_node {
         // test code!
@@ -70,7 +69,6 @@ async fn main() {
         let tx = "0000000000000000000000000000000008041f667c366ee714d6cbefe2a8477ad7488f100000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000003e8e124cac1252a8595c4da5e4d810d231a68571e8b590da337c17a67980e9452ef4e4dbd0a4b7312bd778b5a28dde2e73d152c07a56c5cb246d84f2d6f6d5631aa00";
         let data = hex::decode(tx).unwrap();
         let (signed, _) = SignedTransaction::decode(&data).unwrap();
-        // dbg!(signed.hash);
 
         if let Err(_e) = node.pool.add_transaction(TransactionOrigin::External, signed.into_recovered().unwrap()) {
             eprintln!("Tx1 add failed");

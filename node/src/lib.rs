@@ -50,7 +50,7 @@ impl<DB: DatabaseTrait> Node<DB> {
 
     pub async fn run_rpc(self, network_config: NetworkConfig) -> Result<(), Box<dyn std::error::Error>> {
 
-        println!("PintCnain Node Rpc Server starts.");
+        println!("[ RPC ] PintChain Node Rpc Server starts.");
 
         let listener = match TcpListener::bind((network_config.address, network_config.rpc_port)).await {
             Ok(listener) => listener,

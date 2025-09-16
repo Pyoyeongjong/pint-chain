@@ -262,7 +262,7 @@ impl DatabaseTrait for MDBX {
         let mut cursor = tx.cursor::<Blocks>().map_err(|_| DatabaseError::DBError)?;
         cursor.upsert(new_latest, new_block).map_err(|_| DatabaseError::DBError)?;
         tx.commit().unwrap();
-        println!("DB updated {}", new_latest);
+        println!("[ DB ] DB updated new block. Height: {}", new_latest);
         Ok(())
     }
 
@@ -322,17 +322,5 @@ impl DatabaseTrait for MDBX {
             }
         }
         Ok(None)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::mdbx::MDBX;
-
-
-    #[test]
-    fn test_db() {
-        let mdbx = MDBX::genesis_state();
-        dbg!(mdbx);
     }
 }

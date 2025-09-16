@@ -157,7 +157,6 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
         "block_by_number" => {
             let mut result: Value = json!("Initial Error");
             if let Some(raw) = req.params[0].as_str() {
-                dbg!(raw);
                 let bno = match raw.parse::<u64>() {
                     Ok(n) => n,
                     Err(_e) => {
@@ -171,7 +170,6 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
                         result = json!({
                             "block": hex::encode(block.encode_ref()),
                         });
-                        dbg!(&result);
                     }
                     Ok(None) => {
                         result = json!("There is no block you want to find");
