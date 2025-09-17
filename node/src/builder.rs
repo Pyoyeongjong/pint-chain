@@ -18,26 +18,28 @@ pub struct LaunchContext {
     pub network_config: NetworkConfig,
     pub rpc_config: RpcConfig,
     pub exec_config: ExecConfig,
+    pub in_memory_db: bool,
 }
 
 impl LaunchContext {
-    pub fn new(network_config: NetworkConfig, block_config: BlockConfig) -> Self {
+    pub fn new(network_config: NetworkConfig, block_config: BlockConfig, in_memory_db: bool) -> Self {
         Self {
             block_config,
             pool_config: PoolConfig::default(),
             network_config,
             rpc_config: RpcConfig::default(),
             exec_config: ExecConfig::default(),
+            in_memory_db: in_memory_db,
         }
     }
 }
 
 impl LaunchContext {
     pub async fn launch(self) -> Result<Node<DBImpl>, NodeLaunchError> {
-        let Self {network_config, block_config,..} = self;
+        let Self {network_config, block_config, in_memory_db,..} = self;
         // Build Provider
 
-        let db = if network_config.boot_node.is_boot_node() {
+        let db = if !in_memory_db {
             println!("[ DB ] DB Launched with MDBX.");
             DBImpl::MDBX(MDBX::genesis_state())
         } else {
