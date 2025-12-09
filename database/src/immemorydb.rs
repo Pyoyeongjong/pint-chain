@@ -90,7 +90,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         Ok((account_base, field_base))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(Some(block.clone()))
@@ -99,7 +99,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         }
     }
 
-    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         for (_heignt, block) in blockchain.iter() {
             let tmp_hash = block.header().calculate_hash();
@@ -110,7 +110,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         Err(Box::new(DatabaseError::DataNotExists))
     }
 
-    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(Some(block.header().clone()))
@@ -162,7 +162,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         Ok(())
     }
     
-    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         for (bno, block) in blockchain.iter() {
             for tx in block.body.iter() {

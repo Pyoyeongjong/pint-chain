@@ -14,10 +14,10 @@ struct Args {
     #[arg(short, long, default_value_t = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))]
     address: IpAddr,
 
-    #[arg(short, long, default_value_t = 30303)]
+    #[arg(short, long, default_value_t = 33333)]
     port: u16,
 
-    #[arg(short, long, default_value_t = 8545)]
+    #[arg(short, long, default_value_t = 8888)]
     rpc_port: u16,
 
     #[arg(short, long, default_value_t = String::from("28dcb1338b900419cd613a8fb273ae36e7ec2b1c"))] // pint

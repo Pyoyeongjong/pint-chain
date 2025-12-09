@@ -37,14 +37,14 @@ impl DatabaseTrait for DBImpl {
         }
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         match self {
             DBImpl::MDBX(db) => db.get_block(block_no),
             DBImpl::InMemoryDB(db) => db.get_block(block_no),
         }
     }
 
-    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<dyn std::error::Error + 'static>> {
         match self {
             DBImpl::MDBX(db) => db.get_header(block_no),
             DBImpl::InMemoryDB(db) => db.get_header(block_no),
@@ -66,7 +66,7 @@ impl DatabaseTrait for DBImpl {
         }
     }
 
-    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         match self {
             DBImpl::MDBX(db) => db.get_block_by_hash(hash),
             DBImpl::InMemoryDB(db) => db.get_block_by_hash(hash),
@@ -87,7 +87,7 @@ impl DatabaseTrait for DBImpl {
         }
     }
     
-    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<dyn std::error::Error + 'static>> {
         match self {
             DBImpl::MDBX(db) => db.get_transaction_by_hash(hash),
             DBImpl::InMemoryDB(db) => db.get_transaction_by_hash(hash),

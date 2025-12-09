@@ -192,7 +192,7 @@ impl DatabaseTrait for MDBX {
         Ok((Some(accounts), world))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
         match tx.get::<Blocks>(block_no) {
             Ok(res) => {
@@ -207,7 +207,7 @@ impl DatabaseTrait for MDBX {
         }
     }
 
-    fn get_block_by_hash(&self, hash: BlockHash) -> Result<Option<Block>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_block_by_hash(&self, hash: BlockHash) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
         match tx.get::<BlockByHash>(hash) {
             Ok(res) => {
@@ -222,7 +222,7 @@ impl DatabaseTrait for MDBX {
         }
     }
 
-    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<dyn std::error::Error + 'static>> {
         match self.get_block(block_no) {
             Ok(block) => {
                 match block {
@@ -303,7 +303,7 @@ impl DatabaseTrait for MDBX {
         Ok(())
     }
     
-    fn get_transaction_by_hash(&self, hash: TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<(dyn std::error::Error + 'static)>> {
+    fn get_transaction_by_hash(&self, hash: TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<dyn std::error::Error + 'static>> {
         let tx = self.inner.begin_read().map_err(|_| DatabaseError::DBError)?;
         let block_no = match tx.get::<Transactions>(hash).map_err(|_| DatabaseError::DBError)? {
             Some(bno) => bno,
