@@ -1,9 +1,17 @@
-use std::{collections::{BTreeMap, HashMap}, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
-use parking_lot::{RwLock};
-use primitives::{block::{Block, Header}, transaction::SignedTransaction, types::{Account, Address, U256}, world::World};
+use parking_lot::RwLock;
+use primitives::{
+    block::{Block, Header},
+    transaction::SignedTransaction,
+    types::{Account, Address},
+    world::World,
+};
 
-use crate::{error::DatabaseError, traits::DatabaseTrait};
+use crate::{error::DatabaseError, genesis::genesis_accounts_info, traits::DatabaseTrait};
 
 #[derive(Debug)]
 pub struct InMemoryDB {
@@ -14,29 +22,20 @@ pub struct InMemoryDB {
 }
 
 impl InMemoryDB {
-
-    // 28dcb1338b900419cd613a8fb273ae36e7ec2b1d pint
-    // 0534501c34f5a0f3fa43dc5d78e619be7edfa21a chain
-    // 08041f667c366ee714d6cbefe2a8477ad7488f10 apple
-    // b2aaaf07a29937c3b833dca1c9659d98a9569070 banana
+    // Addr: 28dcb1338b900419cd613a8fb273ae36e7ec2b1d, Seed: pint
+    // Addr: 0534501c34f5a0f3fa43dc5d78e619be7edfa21a, Seed: chain
     pub fn genesis_state() -> Self {
         let mut db = Self::new();
-        let account = Account {
-            nonce: 0,
-            balance: U256::from(1000000000),
-        };
-        let address = Address::from_hex("28dcb1338b900419cd613a8fb273ae36e7ec2b1d".to_string()).unwrap();
-        db.add_account(address, account.clone()).unwrap();
-        let address = Address::from_hex("0534501c34f5a0f3fa43dc5d78e619be7edfa21a".to_string()).unwrap();
-        db.add_account(address, account.clone()).unwrap();
+        for (address, account) in genesis_accounts_info() {
+            db.add_account(address, account).unwrap();
+        }
         db
     }
-
 
     pub fn new() -> Self {
         let mut accounts: BTreeMap<u64, HashMap<Address, Account>> = BTreeMap::new();
         accounts.insert(0 as u64, HashMap::new());
-        
+
         let mut field: BTreeMap<u64, World> = BTreeMap::new();
         field.insert(0, World::new());
 
@@ -45,19 +44,23 @@ impl InMemoryDB {
         blockchain.insert(0, genesis_block);
 
         Self {
-            accounts: RwLock::new(accounts), 
-            field: RwLock::new(field), 
+            accounts: RwLock::new(accounts),
+            field: RwLock::new(field),
             blockchain: RwLock::new(blockchain),
             latest: RwLock::new(0),
         }
     }
 
-    pub fn add_account(&mut self, address: Address, account: Account) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_account(
+        &mut self,
+        address: Address,
+        account: Account,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut state = self.accounts.write();
 
         let latest_accounts = state.entry(*self.latest.read()).or_default();
         latest_accounts.insert(address, account);
-        
+
         Ok(())
     }
 }
@@ -66,15 +69,20 @@ impl DatabaseTrait for Arc<InMemoryDB> {
     fn latest_block_number(&self) -> u64 {
         *self.latest.read()
     }
-    
+
     fn basic(&self, address: &Address) -> Result<Option<Account>, Box<dyn std::error::Error>> {
         let mut state = self.accounts.write();
 
-        let latest_accounts: &mut HashMap<Address, Account> = state.entry(self.latest_block_number()).or_default();
+        let latest_accounts: &mut HashMap<Address, Account> =
+            state.entry(self.latest_block_number()).or_default();
         Ok(latest_accounts.get(address).or(None).cloned())
     }
-    
-    fn get_state(&self, block_no: u64) -> Result<(Option<HashMap<Address, Account>>, Option<World>), Box<dyn std::error::Error>> {
+
+    fn get_state(
+        &self,
+        block_no: u64,
+    ) -> Result<(Option<HashMap<Address, Account>>, Option<World>), Box<dyn std::error::Error>>
+    {
         let accounts = self.accounts.read();
         let mut account_base = None;
         if let Some(state_account) = accounts.get(&block_no) {
@@ -90,7 +98,10 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         Ok((account_base, field_base))
     }
 
-    fn get_block(&self, block_no: u64) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
+    fn get_block(
+        &self,
+        block_no: u64,
+    ) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(Some(block.clone()))
@@ -99,18 +110,24 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         }
     }
 
-    fn get_block_by_hash(&self, hash: primitives::types::BlockHash) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
+    fn get_block_by_hash(
+        &self,
+        hash: primitives::types::BlockHash,
+    ) -> Result<Option<Block>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         for (_heignt, block) in blockchain.iter() {
             let tmp_hash = block.header().calculate_hash();
             if hash == tmp_hash {
-                return Ok(Some(block.clone()))
+                return Ok(Some(block.clone()));
             }
         }
         Err(Box::new(DatabaseError::DataNotExists))
     }
 
-    fn get_header(&self, block_no: u64) -> Result<Option<Header>, Box<dyn std::error::Error + 'static>> {
+    fn get_header(
+        &self,
+        block_no: u64,
+    ) -> Result<Option<Header>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         if let Some(block) = blockchain.get(&block_no) {
             Ok(Some(block.header().clone()))
@@ -125,9 +142,13 @@ impl DatabaseTrait for Arc<InMemoryDB> {
         let block = blockchain.get(&latest).unwrap();
         block.header.clone()
     }
-    
-    fn update(&self, new_account_state: HashMap<Address, Account>, new_field_state: World, block: Block) 
-        -> Result<(), Box<dyn std::error::Error>>{
+
+    fn update(
+        &self,
+        new_account_state: HashMap<Address, Account>,
+        new_field_state: World,
+        block: Block,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut latest = self.latest.write();
         *latest += 1;
         let mut state = self.accounts.write();
@@ -142,7 +163,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
 
         Ok(())
     }
-    
+
     fn remove_data(&self, height: u64) -> Result<(), Box<dyn std::error::Error>> {
         let latest = self.latest.read();
         if *latest != height {
@@ -161,8 +182,11 @@ impl DatabaseTrait for Arc<InMemoryDB> {
 
         Ok(())
     }
-    
-    fn get_transaction_by_hash(&self, hash: primitives::types::TxHash) -> Result<Option<(SignedTransaction, u64)>, Box<dyn std::error::Error + 'static>> {
+
+    fn get_transaction_by_hash(
+        &self,
+        hash: primitives::types::TxHash,
+    ) -> Result<Option<(SignedTransaction, u64)>, Box<dyn std::error::Error + 'static>> {
         let blockchain = self.blockchain.read();
         for (bno, block) in blockchain.iter() {
             for tx in block.body.iter() {
