@@ -1,8 +1,11 @@
 pub mod handle;
 
-use std::sync::{atomic::AtomicU64, Arc};
+use std::sync::{Arc, atomic::AtomicU64};
 
-use primitives::{handle::{MinerHandleMessage, MinerResultMessage}, types::{B256}};
+use primitives::{
+    handle::{MinerHandleMessage, MinerResultMessage},
+    types::B256,
+};
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
@@ -17,7 +20,10 @@ pub struct Miner {
 }
 
 impl Miner {
-    pub fn new(miner_rx: UnboundedReceiver<MinerHandleMessage>, consensus_tx:UnboundedSender<MinerResultMessage>) -> Self {
+    pub fn new(
+        miner_rx: UnboundedReceiver<MinerHandleMessage>,
+        consensus_tx: UnboundedSender<MinerResultMessage>,
+    ) -> Self {
         Self {
             miner_rx,
             consensus_tx,
@@ -27,9 +33,14 @@ impl Miner {
     }
 
     pub fn start_channel(self) {
-        tokio::spawn(async move{
+        tokio::spawn(async move {
             println!("[ Miner ] Miner channel starts.");
-            let Miner { mut miner_rx, consensus_tx, epoch, worker } = self;
+            let Miner {
+                mut miner_rx,
+                consensus_tx,
+                epoch,
+                worker,
+            } = self;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
                     println!("[ Miner ] Miner received message: {}", msg);
@@ -50,7 +61,7 @@ impl Miner {
                             hasher.update(payload_header.difficulty.to_be_bytes());
                             hasher.update(payload_header.height.to_be_bytes());
 
-                            tokio::spawn(async move {
+                            tokio::task::spawn_blocking(move || {
                                 let mut nonce: u64 = 0;
                                 let difficulty = payload_header.difficulty;
                                 loop {
@@ -60,14 +71,15 @@ impl Miner {
                                     if meets_target(result, difficulty) {
                                         // Mining Ok!
                                         let header = payload_header.clone().into_header(nonce);
-                                        if let Err(e) = consensus_tx.send(MinerResultMessage::MiningSuccess(header)) {
+                                        if let Err(e) = consensus_tx
+                                            .send(MinerResultMessage::MiningSuccess(header))
+                                        {
                                             eprintln!("Failed to send MinerResultMessage: {:?}", e);
                                         }
                                         return;
                                     }
                                     nonce += 1;
                                 }
-                                
                             });
                         }
                     }
@@ -86,7 +98,6 @@ impl Miner {
         miner.start_channel();
         (miner_handle, consensus_rx)
     }
-
 }
 
 fn meets_target(result: B256, difficulty: u32) -> bool {
@@ -113,4 +124,3 @@ fn meets_target(result: B256, difficulty: u32) -> bool {
 
     remains == 0
 }
-

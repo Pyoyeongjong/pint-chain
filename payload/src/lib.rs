@@ -1,15 +1,20 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use primitives::{block::{Payload, PayloadHeader}, handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage}, merkle::calculate_merkle_root,types::{Address, U256}};
-use provider::{executor::Executor, DatabaseTrait, ProviderFactory};
+use primitives::{
+    block::{Payload, PayloadHeader},
+    handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage},
+    merkle::calculate_merkle_root,
+    types::{Address, U256},
+};
+use provider::{DatabaseTrait, ProviderFactory, executor::Executor};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use transaction_pool::Pool;
 
-use crate::{builder::{BuildArguments}, error::PayloadBuilderError, handle::PayloadBuilderHandle};
+use crate::{builder::BuildArguments, error::PayloadBuilderError, handle::PayloadBuilderHandle};
 
-pub mod handle; 
-pub mod error;
 pub mod builder;
+pub mod error;
+pub mod handle;
 
 #[derive(Debug)]
 pub struct PayloadBuilder<DB: DatabaseTrait> {
@@ -27,9 +32,16 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
         }
     }
 
-    pub fn start_builder(self) -> (PayloadBuilderHandle, UnboundedReceiver<PayloadBuilderResultMessage>) {
-        let (to_manager_tx, to_manager_rx) = mpsc::unbounded_channel::<PayloadBuilderHandleMessage>();
-        let (orchestration_tx, builder_rx) = mpsc::unbounded_channel::<PayloadBuilderResultMessage>();
+    pub fn start_builder(
+        self,
+    ) -> (
+        PayloadBuilderHandle,
+        UnboundedReceiver<PayloadBuilderResultMessage>,
+    ) {
+        let (to_manager_tx, to_manager_rx) =
+            mpsc::unbounded_channel::<PayloadBuilderHandleMessage>();
+        let (orchestration_tx, builder_rx) =
+            mpsc::unbounded_channel::<PayloadBuilderResultMessage>();
 
         let builder_handle = PayloadBuilderHandle::new(to_manager_tx);
 
@@ -39,13 +51,17 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
     }
 
     fn start_channel(
-        self, 
-        mut to_manager_rx: UnboundedReceiver<PayloadBuilderHandleMessage>, 
-        orchestration_tx: UnboundedSender<PayloadBuilderResultMessage>
+        self,
+        mut to_manager_rx: UnboundedReceiver<PayloadBuilderHandleMessage>,
+        orchestration_tx: UnboundedSender<PayloadBuilderResultMessage>,
     ) {
         tokio::spawn(async move {
             println!("[ Payload Builder ] channel starts.");
-            let PayloadBuilder { address, provider, pool } = self;
+            let PayloadBuilder {
+                address,
+                provider,
+                pool,
+            } = self;
 
             loop {
                 if let Some(msg) = to_manager_rx.recv().await {
@@ -54,8 +70,13 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
                         PayloadBuilderHandleMessage::BuildPayload => {
                             pool.print_pool();
                             if pool.check_pending_pool_len() == 0 {
-                                if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::PoolIsEmpty) {
-                                    eprintln!("[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                if let Err(e) =
+                                    orchestration_tx.send(PayloadBuilderResultMessage::PoolIsEmpty)
+                                {
+                                    eprintln!(
+                                        "[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}",
+                                        e
+                                    );
                                 };
                                 continue;
                             }
@@ -65,23 +86,35 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
 
                             let difficulty = provider.get_next_difficulty();
                             let parent_header = provider.db().get_latest_block_header();
-                            tokio::spawn(async move {
-                                match default_paylod(BuildArguments::new(address, parent_header, difficulty), provider, pool).await {
+
+                            //TODO: spawn 또는 spawn_blocking 등이 에러로 강제종료 될 때를 대비해 JoinHandle을 받아놓고, tokio::task 를 하나 더만들어서
+                            //실패 결과를 로그로 찍는 것이 이상적이다.
+                            tokio::task::spawn_blocking(move || {
+                                match default_paylod(
+                                    BuildArguments::new(address, parent_header, difficulty),
+                                    provider,
+                                    pool,
+                                ) {
                                     Ok(payload) => {
-                                        if let Err(e) = orchestration_tx.send(PayloadBuilderResultMessage::Payload(payload)) {
-                                            eprintln!("[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}", e);
+                                        if let Err(e) = orchestration_tx
+                                            .send(PayloadBuilderResultMessage::Payload(payload))
+                                        {
+                                            eprintln!(
+                                                "[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}",
+                                                e
+                                            );
                                         };
                                     }
                                     Err(e) => {
-                                        eprintln!("[ Payload Builder ] Failed to make new payload {:?}", e);
+                                        eprintln!(
+                                            "[ Payload Builder ] Failed to make new payload {:?}",
+                                            e
+                                        );
                                     }
                                 }
-                                
                             });
                         }
-                        PayloadBuilderHandleMessage::Stop => {
-
-                        }
+                        PayloadBuilderHandleMessage::Stop => {}
                     }
                 }
             }
@@ -89,15 +122,15 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
     }
 }
 
-async fn default_paylod<DB: DatabaseTrait>(
+fn default_paylod<DB: DatabaseTrait>(
     args: BuildArguments,
-    provider: ProviderFactory<DB>, 
-    pool: Pool<DB>
+    provider: ProviderFactory<DB>,
+    pool: Pool<DB>,
 ) -> Result<Payload, PayloadBuilderError> {
     let BuildArguments {
-        address, 
+        address,
         parent_header,
-        attributes
+        attributes,
     } = args;
 
     let state_provider = provider.latest();
@@ -113,7 +146,7 @@ async fn default_paylod<DB: DatabaseTrait>(
     let mut body = Vec::new();
     let mut total_fee = U256::ZERO;
 
-    let mut count: u32 = 0;    
+    let mut count: u32 = 0;
 
     while let Some(pool_tx) = best_txs.next() {
         match executor.execute_transaction(&pool_tx.transaction) {
@@ -135,7 +168,10 @@ async fn default_paylod<DB: DatabaseTrait>(
     let tx_hashes = body.iter().map(|tx| tx.hash.hash()).collect();
     let transaction_root = calculate_merkle_root(tx_hashes);
     let state_root = executor.calculate_state_root();
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time shuld go forward").as_secs();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time shuld go forward")
+        .as_secs();
 
     let payload_header = PayloadHeader {
         previous_hash: parent_header.calculate_hash(),
@@ -145,7 +181,7 @@ async fn default_paylod<DB: DatabaseTrait>(
         difficulty: attributes.next_difficulty,
         height: next_height,
         timestamp,
-        total_fee
+        total_fee,
     };
 
     let payload = Payload {

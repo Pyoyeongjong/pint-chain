@@ -2,9 +2,9 @@
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-resolver = "3"
 
 [workspace]
+resolver = "3"
 members = [ "consensus", "database", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]
 default-members = ["pint"]
 

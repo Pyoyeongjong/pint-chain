@@ -1,9 +1,12 @@
-use primitives::{block::{Block, BlockValidationResult}, error::{BlockImportError, BlockValidatioError}};
-use provider::{executor::Executor, DatabaseTrait, ProviderFactory};
+use primitives::{
+    block::{Block, BlockValidationResult},
+    error::{BlockImportError, BlockValidatioError},
+};
+use provider::{DatabaseTrait, ProviderFactory, executor::Executor};
 
 #[derive(Debug)]
 pub struct BlockImporter<DB: DatabaseTrait> {
-    provider: ProviderFactory<DB>
+    provider: ProviderFactory<DB>,
 }
 
 impl<DB: DatabaseTrait> BlockImporter<DB> {
@@ -14,19 +17,25 @@ impl<DB: DatabaseTrait> BlockImporter<DB> {
     pub fn import_new_block(&self, block: Block) -> Result<(), BlockImportError> {
         if block.header.height > self.provider.block_number() + 1 {
             return Err(BlockImportError::BlockHeightError);
-        }   
+        }
         if block.header.height != self.provider.block_number() + 1 {
             return Err(BlockImportError::AlreadyImportedBlock);
         }
-        if block.header().previous_hash != self.provider.db().get_latest_block_header().calculate_hash() {
+        if block.header().previous_hash
+            != self
+                .provider
+                .db()
+                .get_latest_block_header()
+                .calculate_hash()
+        {
             return Err(BlockImportError::NotChainedBlock);
         }
         let res = self.validate_block(&block)?;
         if res.success {
             if let Err(_e) = self.provider.import_new_block(block) {
                 return Err(BlockImportError::ProviderError);
-            }            
-        } 
+            }
+        }
 
         Ok(())
     }
@@ -54,18 +63,17 @@ impl<DB: DatabaseTrait> BlockImporter<DB> {
                 result.add_error(BlockValidatioError::ExecutionError);
             }
         }
-        
+
         Ok(result)
     }
 
-    fn validate_block_with_no_state(&self, _block: &Block) -> Result<BlockValidationResult, BlockImportError>{
-        // todo!
+    fn validate_block_with_no_state(
+        &self,
+        _block: &Block,
+    ) -> Result<BlockValidationResult, BlockImportError> {
         let success = true;
         let error: Option<BlockValidatioError> = None;
-        
-        Ok(BlockValidationResult {
-            success,
-            error
-        })
+
+        Ok(BlockValidationResult { success, error })
     }
 }

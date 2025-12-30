@@ -1,16 +1,23 @@
 use std::time::Duration;
 
-use payload::handle::{PayloadBuilderHandle, };
-use primitives::{block::{Block, Payload}, error::BlockImportError, handle::{ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage, NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage}};
+use payload::handle::PayloadBuilderHandle;
+use primitives::{
+    block::{Block, Payload},
+    error::BlockImportError,
+    handle::{
+        ConsensusHandleMessage, Handle, MinerHandleMessage, MinerResultMessage,
+        NetworkHandleMessage, PayloadBuilderHandleMessage, PayloadBuilderResultMessage,
+    },
+};
 use provider::{DatabaseTrait, ProviderFactory};
 use tokio::sync::mpsc::UnboundedReceiver;
 use transaction_pool::Pool;
 
 use crate::{handle::ConsensusHandle, importer::BlockImporter, miner::handle::MinerHandle};
 
-pub mod miner;
-pub mod importer;
 pub mod handle;
+pub mod importer;
+pub mod miner;
 
 #[derive(Debug)]
 pub struct ConsensusEngine<DB: DatabaseTrait> {
@@ -29,14 +36,13 @@ pub struct ConsensusEngine<DB: DatabaseTrait> {
 
 impl<DB: DatabaseTrait> ConsensusEngine<DB> {
     pub fn new(
-        pool: Pool<DB>, 
-        builder_handle: PayloadBuilderHandle, 
-        network: Box<dyn Handle<Msg = NetworkHandleMessage>>, 
-        provider: ProviderFactory<DB>, 
-        miner_handle: MinerHandle, 
+        pool: Pool<DB>,
+        builder_handle: PayloadBuilderHandle,
+        network: Box<dyn Handle<Msg = NetworkHandleMessage>>,
+        provider: ProviderFactory<DB>,
+        miner_handle: MinerHandle,
         miner_events: UnboundedReceiver<MinerResultMessage>,
-        builder_events: UnboundedReceiver<PayloadBuilderResultMessage>
-
+        builder_events: UnboundedReceiver<PayloadBuilderResultMessage>,
     ) -> Self {
         Self {
             network,
@@ -50,22 +56,25 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
         }
     }
 
-    pub fn start_consensus(self, consensus_handle: ConsensusHandle, mut rx: UnboundedReceiver<ConsensusHandleMessage>) -> ConsensusHandle{
-
+    pub fn start_consensus(
+        self,
+        consensus_handle: ConsensusHandle,
+        mut rx: UnboundedReceiver<ConsensusHandleMessage>,
+    ) -> ConsensusHandle {
         let consensus_handle_cloned = consensus_handle.clone();
 
         tokio::spawn(async move {
             println!("[ Consensus ] Consensus channel starts.");
             let consensus_handle = consensus_handle_cloned;
-            let Self { 
-                importer, 
-                pool, 
-                network, 
-                builder_handle, 
-                mut builder_events, 
-                miner_handle, 
-                mut miner_events ,
-                latest_payload
+            let Self {
+                importer,
+                pool,
+                network,
+                builder_handle,
+                mut builder_events,
+                miner_handle,
+                mut miner_events,
+                latest_payload,
             } = self;
 
             // initial functions
@@ -75,7 +84,6 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
             let mut latest_payload: Option<Payload> = None;
 
             loop {
-                
                 tokio::select! {
                     Some(msg) = miner_events.recv() => {
                         println!("[ Consensus ] received message from Miner: {}", msg);
@@ -115,18 +123,21 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                     println!("[ Consensus ] Payload with no body. Wait for new Transaction..");
                                     let builder_handle_cloned = builder_handle.clone();
                                     tokio::spawn(async move {
+                                        //TODO: Notify를 활용해서 꺠우는 것도 가능할 듯?
                                         tokio::time::sleep(Duration::from_secs(5)).await;
                                         builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
                                     });
-                                    continue;
+                                } else {
+                                    let miner_handle_cloned = miner_handle.clone();
+                                    miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
+                                    latest_payload = Some(payload);
                                 }
-                                let miner_handle_cloned = miner_handle.clone();
-                                miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
-                                latest_payload = Some(payload);
+
                             }
                             PayloadBuilderResultMessage::PoolIsEmpty => {
                                 let builder_handle_cloned = builder_handle.clone();
                                 tokio::spawn(async move {
+                                    //TODO: Notify를 활용해서 꺠우는 것도 가능할 듯 2?
                                     tokio::time::sleep(Duration::from_secs(5)).await;
                                     builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
                                 });

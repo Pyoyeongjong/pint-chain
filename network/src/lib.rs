@@ -1,18 +1,28 @@
 use std::net::{IpAddr, SocketAddr};
 
-use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, types::BlockHash};
+use primitives::{
+    handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage},
+    types::BlockHash,
+};
 use provider::{DatabaseTrait, ProviderFactory};
-use rand::{rng, seq::{IndexedRandom}};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpListener, TcpStream}};
-use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
-use transaction_pool::{identifier::TransactionOrigin, Pool};
+use rand::{rng, seq::IndexedRandom};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+};
+use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
+use transaction_pool::{Pool, identifier::TransactionOrigin};
 
-use crate::{builder::{BootNode, NetworkConfig}, handle::NetworkHandle, peer::PeerList};
+use crate::{
+    builder::{BootNode, NetworkConfig},
+    handle::NetworkHandle,
+    peer::PeerList,
+};
 
-pub mod peer;
 pub mod builder;
 pub mod error;
 pub mod handle;
+pub mod peer;
 
 pub struct NetworkManager<DB: DatabaseTrait> {
     listener: TcpListener,
@@ -38,19 +48,19 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                         let peer_len = this.peers.len();
                         if peer_len >= this.config.max_peer_size {
                             println!("[ Network ] Can't accept a new peer. max_peer_size: {}", this.config.max_peer_size);
-                            let peers = this.peers.inner().read();
-                            let mut rng = rng();
-                            if let Some(peer) = peers.choose(&mut rng) {
 
-                                let socket_addr = peer.addr().clone();
+                            let redirect = {
+                                let peers = this.peers.inner().read();
+                                let mut rng = rng();
+                                peers.choose(&mut rng).map(|p| p.addr().clone())
+                            };
+
+                            if let Some(socket_addr) = redirect{
                                 let msg_string = socket_addr.to_string();
 
-                                tokio::spawn(async move {
-                                    if let Err(e) = socket.write_all(msg_string.as_bytes()).await {
-                                        eprintln!("[ Network ] Failed to send one-shot msg: {:?}", e);
-                                    }
-                                });
-                                
+                                if let Err(e) = socket.write_all(msg_string.as_bytes()).await {
+                                    eprintln!("[ Network ] Failed to send one-shot msg: {:?}", e);
+                                }
                             }
                         } else {
                             println!("New peer: {}", addr);
@@ -168,9 +178,9 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                     }
                                 };
                                 peer.update_addr(socket_addr);
-                
+
                                 println!("[ Network ] Handshake completed with {:?}", socket_addr);
-                                
+
                             }
 
                             NetworkHandleMessage::Hello(pid, address, port) => {
@@ -237,7 +247,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                         Ok(header) => {
                                             if let Some(headr) = header {
                                                 block_hash_vec.push(headr.calculate_hash());
-                                            } 
+                                            }
                                         }
                                         Err(e) => {
                                             eprintln!("[ Network ] RequestChainData: Can't get block hash: {:?}", e);
@@ -291,7 +301,12 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
         });
     }
 
-    pub async fn connect_with_boot_node(&mut self, _ip_addr: IpAddr, _port: u16, boot_node: &BootNode) {
+    pub async fn connect_with_boot_node(
+        &mut self,
+        _ip_addr: IpAddr,
+        _port: u16,
+        boot_node: &BootNode,
+    ) {
         if boot_node.is_boot_node() {
             return;
         }
@@ -316,7 +331,11 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             }
                         }
                         Ok(_) => {
-                            let _ = self.peers.insert_new_peer(socket, addr, self.networ_handle.clone());
+                            let _ = self.peers.insert_new_peer(
+                                socket,
+                                addr,
+                                self.networ_handle.clone(),
+                            );
                             break;
                         }
                         Err(e) => {
@@ -342,7 +361,8 @@ impl<DB: DatabaseTrait + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB>
             .field("from_handle_rx", &self.from_handle_rx)
             .field("pool", &self.pool)
             .field("peers", &self.peers)
-            .field("config", &self.config).finish()
+            .field("config", &self.config)
+            .finish()
     }
 }
 
