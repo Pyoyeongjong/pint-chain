@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+thiserror.workspace = true
 alloy-primitives = { version = "1.2.0", features = ["rand"] }
 k256 = { version = "0.13.4", features = ["ecdsa", "sha256"]}
 serde_json = { version = "1.0.140" }

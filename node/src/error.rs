@@ -1,7 +1,9 @@
 use network::error::NetworkStartError;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum NodeLaunchError {
+    #[error("Network Start Error")]
     NetworkStartError(NetworkStartError),
 }
 

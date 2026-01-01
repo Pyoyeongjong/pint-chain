@@ -1,20 +1,24 @@
 use std::sync::Arc;
 
-use axum::{extract::State, Json};
-use primitives::{handle::NetworkHandleMessage, transaction::SignedTransaction, types::{Address, TxHash, B256}};
+use axum::{Json, extract::State};
+use primitives::{
+    handle::NetworkHandleMessage,
+    transaction::SignedTransaction,
+    types::{Address, B256, TxHash},
+};
 use provider::DatabaseTrait;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use transaction_pool::{error::PoolErrorKind, identifier::TransactionOrigin};
 
 use crate::Node;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct RpcRequest{
+pub struct RpcRequest {
     pub jsonrpc: String,
     pub method: String,
     pub params: Vec<Value>,
-    pub id: u64
+    pub id: u64,
 }
 
 impl RpcRequest {
@@ -36,73 +40,136 @@ pub struct RpcResponse {
     pub id: u64,
 }
 
-
-pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Json(req): Json<RpcRequest>) -> Json<RpcResponse> {
-
-    let mut success = false;  
+pub async fn rpc_handle<DB: DatabaseTrait>(
+    State(node): State<Arc<Node<DB>>>,
+    Json(req): Json<RpcRequest>,
+) -> Json<RpcResponse> {
+    let mut success = false;
     match req.method.as_str() {
         "chain_name" => {
             let result = json!("Pint");
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
         "local_transaction" => {
             let result;
             if let Some(raw) = req.params[0].as_str() {
                 let data = match hex::decode(raw) {
                     Ok(data) => data,
-                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Hex Decode Error"), id: req.id })
+                    Err(_e) => {
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result: json!("Transaction Hex Decode Error"),
+                            id: req.id,
+                        });
+                    }
                 };
                 let signed = match SignedTransaction::decode(&data) {
                     Ok((signed, _)) => signed,
-                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Decode Error"), id: req.id })
+                    Err(_e) => {
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result: json!("Transaction Decode Error"),
+                            id: req.id,
+                        });
+                    }
                 };
                 let signed_tx = signed.clone();
                 let origin = TransactionOrigin::Local;
                 let recovered = match signed.into_recovered() {
                     Ok(recovered) => recovered,
-                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Recovery Error"), id: req.id })
+                    Err(_e) => {
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result: json!("Transaction Recovery Error"),
+                            id: req.id,
+                        });
+                    }
                 };
                 let tx_hash = match node.pool.add_transaction(origin, recovered) {
                     Ok(tx_hash) => tx_hash,
-                    Err(e) => {
-                        match e.kind {
-                            PoolErrorKind::AlreadyImported => {
-                                return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error: AlreadyImported"), id: req.id })
-                            }
-                            PoolErrorKind::InvalidTransaction(_tx) => {
-                                return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error: InvalidTransaction"), id: req.id })
-                            }
-                            PoolErrorKind::RelpacementUnderpriced(_tx) => {
-                                return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error: ReloacedUnderpriced"), id: req.id })
-                            }
-                            PoolErrorKind::InvalidPoolTransactionError(_tx) => {
-                                return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error: InvalidPoolTransactionError"), id: req.id })
-                            }
-                            PoolErrorKind::ImportError => {
-                                return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Pool Error: ImportError"), id: req.id })
-                            }
+                    Err(e) => match e.kind {
+                        PoolErrorKind::AlreadyImported => {
+                            return Json(RpcResponse {
+                                jsonrpc: "2.0".to_string(),
+                                success,
+                                result: json!("Transaction Pool Error: AlreadyImported"),
+                                id: req.id,
+                            });
                         }
-                    }
+                        PoolErrorKind::InvalidTransaction(_tx) => {
+                            return Json(RpcResponse {
+                                jsonrpc: "2.0".to_string(),
+                                success,
+                                result: json!("Transaction Pool Error: InvalidTransaction"),
+                                id: req.id,
+                            });
+                        }
+                        PoolErrorKind::RelpacementUnderpriced(_tx) => {
+                            return Json(RpcResponse {
+                                jsonrpc: "2.0".to_string(),
+                                success,
+                                result: json!("Transaction Pool Error: ReloacedUnderpriced"),
+                                id: req.id,
+                            });
+                        }
+                        PoolErrorKind::InvalidPoolTransactionError(_tx) => {
+                            return Json(RpcResponse {
+                                jsonrpc: "2.0".to_string(),
+                                success,
+                                result: json!(
+                                    "Transaction Pool Error: InvalidPoolTransactionError"
+                                ),
+                                id: req.id,
+                            });
+                        }
+                        PoolErrorKind::ImportError => {
+                            return Json(RpcResponse {
+                                jsonrpc: "2.0".to_string(),
+                                success,
+                                result: json!("Transaction Pool Error: ImportError"),
+                                id: req.id,
+                            });
+                        }
+                    },
                 };
 
                 // broadcast to peer!
                 success = true;
                 result = json!(tx_hash.hash().to_string());
-                node.network.send(NetworkHandleMessage::BroadcastTransaction(signed_tx));
+                node.network
+                    .send(NetworkHandleMessage::BroadcastTransaction(signed_tx));
             } else {
                 result = json!("There is no new transaction");
             }
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
         "account" => {
             let mut result = json!("Failed");
             if let Some(raw) = req.params[0].as_str() {
-                let address = match Address::from_hex(raw.to_string()){
+                let address = match Address::from_hex(raw.to_string()) {
                     Ok(addr) => addr,
                     Err(e) => {
                         eprintln!("Failed to get account info: {:?}", e);
                         result = json!("Wrong address");
-                        return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id });
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result,
+                            id: req.id,
+                        });
                     }
                 };
 
@@ -116,23 +183,39 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
                             None => json!("No account info"),
                         };
                     }
-                    Err(_e) => {
-
-                    }
+                    Err(_e) => {}
                 };
-            } 
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            }
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
         "blockchain_height" => {
             let result = json!(node.provider.block_number());
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
         "transaction" => {
             let mut result: Value = json!("There is no transaction you want to find.");
             if let Some(raw) = req.params[0].as_str() {
+                dbg!(&raw);
                 let data = match hex::decode(raw) {
                     Ok(data) => data,
-                    Err(_e) => return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result: json!("Transaction Hex Decode Error"), id: req.id })
+                    Err(_e) => {
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result: json!("Transaction Hex Decode Error"),
+                            id: req.id,
+                        });
+                    }
                 };
 
                 let tx_hash: TxHash = TxHash::from(B256::from_slice(&data));
@@ -152,7 +235,12 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
                     }
                 }
             }
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
         "block_by_number" => {
             let mut result: Value = json!("Initial Error");
@@ -161,7 +249,12 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
                     Ok(n) => n,
                     Err(_e) => {
                         result = json!("U64 parse Failed");
-                        return Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id });
+                        return Json(RpcResponse {
+                            jsonrpc: "2.0".to_string(),
+                            success,
+                            result,
+                            id: req.id,
+                        });
                     }
                 };
 
@@ -179,11 +272,37 @@ pub async fn rpc_handle<DB: DatabaseTrait>(State(node): State<Arc<Node<DB>>>, Js
                     }
                 }
             }
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
-         _ => {
+        "peers" => {
+            let mut result: Value = json!("There isn't peer you want to find");
+
+            if let Some(raw) = req.params[0].as_str() {
+                dbg!(raw);
+                // let addr = SocketAddr::from(raw);
+                // match node.handle_network(NetworkHandleMessage::PeerConnectionTest { peer: () });
+            }
+
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
+        }
+        _ => {
             let result = json!("Wrong Requirement");
-            Json(RpcResponse { jsonrpc: "2.0".to_string(), success, result, id: req.id })
+            Json(RpcResponse {
+                jsonrpc: "2.0".to_string(),
+                success,
+                result,
+                id: req.id,
+            })
         }
     }
 }

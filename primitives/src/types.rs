@@ -2,6 +2,7 @@
 pub use alloy_primitives::{B256, U256};
 use libmdbx::orm::{Decodable, Encodable};
 use rand::Rng;
+use serde::Serialize;
 
 use crate::error::AddressError;
 
@@ -54,12 +55,11 @@ pub type PayloadId = u64;
 
 const ADDR_LEN: usize = 20;
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Address([u8; ADDR_LEN]);
 pub const COINBASE_ADDR: Address = Address([0u8; 20]);
 
 impl Address {
-
     pub fn min() -> Self {
         let addr = [0u8; 20];
         Self::from_byte(addr)
@@ -95,7 +95,7 @@ impl Address {
     pub fn get_addr_hex(&self) -> String {
         hex::encode(self.0)
     }
-    
+
     pub fn get_addr(&self) -> &[u8] {
         &self.0
     }
@@ -122,7 +122,6 @@ pub struct Account {
 }
 
 impl Account {
-
     pub fn new(nonce: u64, balance: U256) -> Self {
         Self { nonce, balance }
     }

@@ -10,4 +10,5 @@ provider.workspace = true
 transaction_pool.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
+thiserror.workspace = true
 

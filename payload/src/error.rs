@@ -1,8 +1,10 @@
 use provider::error::ProviderError;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PayloadBuilderError {
-    ProviderError(ProviderError)
+    #[error("Provider Error")]
+    ProviderError(ProviderError),
 }
 
 impl From<ProviderError> for PayloadBuilderError {

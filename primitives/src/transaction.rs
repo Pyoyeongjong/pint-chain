@@ -1,14 +1,17 @@
-use anyhow::bail;
-use k256::ecdsa::RecoveryId;
-use k256::ecdsa::VerifyingKey;
-use k256::EncodedPoint;
-use libmdbx::orm::Decodable;
-use libmdbx::orm::Encodable;
-use sha2::Sha256;
-use sha2::Digest;
 use crate::error::DecodeError;
 use crate::error::RecoveryError;
-use crate::{signature::Signature, types::{Address, ChainId, TxHash, U256, B256}};
+use crate::{
+    signature::Signature,
+    types::{Address, B256, ChainId, TxHash, U256},
+};
+use anyhow::bail;
+use k256::EncodedPoint;
+use k256::ecdsa::RecoveryId;
+use k256::ecdsa::VerifyingKey;
+use libmdbx::orm::Decodable;
+use libmdbx::orm::Encodable;
+use sha2::Digest;
+use sha2::Sha256;
 
 pub trait Tx {
     fn chain_id(&self) -> ChainId;
@@ -29,7 +32,6 @@ pub struct Transaction {
 }
 
 impl Transaction {
-
     pub const fn raw_len() -> usize {
         8 + 16 + 20 + 16 + 32
     }
@@ -78,7 +80,11 @@ impl Transaction {
 
     fn into_signed(self, signature: Signature) -> SignedTransaction {
         let hash = self.encode_for_signing();
-        SignedTransaction { tx: self, signature, hash }
+        SignedTransaction {
+            tx: self,
+            signature,
+            hash,
+        }
     }
 }
 
@@ -113,13 +119,16 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
-
     pub fn transaction(&self) -> &Transaction {
         &self.tx
     }
 
-    pub fn new(tx: Transaction, signature: Signature, hash: TxHash) -> Self{
-        Self { tx, signature, hash }
+    pub fn new(tx: Transaction, signature: Signature, hash: TxHash) -> Self {
+        Self {
+            tx,
+            signature,
+            hash,
+        }
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -170,10 +179,7 @@ impl SignedTransaction {
 
     pub fn into_recovered(self) -> Result<Recovered, RecoveryError> {
         let signer = self.recover_signer()?;
-        Ok(Recovered {
-            tx: self, signer
-
-        })
+        Ok(Recovered { tx: self, signer })
     }
 }
 
@@ -198,7 +204,6 @@ impl Tx for SignedTransaction {
         self.transaction().value()
     }
 }
-
 
 // For db encode, decode
 impl Encodable for SignedTransaction {
@@ -284,7 +289,10 @@ impl Tx for Recovered {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use k256::{ecdsa::{RecoveryId, Signature as ECDSASig, SigningKey}, EncodedPoint};
+    use k256::{
+        EncodedPoint,
+        ecdsa::{RecoveryId, Signature as ECDSASig, SigningKey},
+    };
     use sha2::{Digest, Sha256};
 
     fn create_key_pairs(seed: &[u8]) -> (SigningKey, Vec<u8>) {

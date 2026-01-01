@@ -8,6 +8,7 @@ license.workspace = true
 primitives.workspace = true
 tokio.workspace = true
 parking_lot.workspace = true
+thiserror.workspace = true
 libmdbx = { version = "0.6.1", features = ["orm"] }
 serde_json = { version = "1.0.140" }
 serde = { version = "1.0.128", features = ["derive"] }

@@ -5,7 +5,7 @@ license = "MIT"
 
 [workspace]
 resolver = "3"
-members = [ "consensus", "database", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]
+members = [ "consensus", "database", "e2e-test", "network", "node", "payload","pint", "primitives", "provider", "transaction_pool"]
 default-members = ["pint"]
 
 [workspace.dependencies]
@@ -17,6 +17,7 @@ payload = { path = "payload" }
 network = { path = "network" }
 consensus = { path = "consensus" }
 node = { path = "node" }
+e2e-test = { path = "e2e-test" }
 
 serde_json = { version = "1.0.140" }
 serde = { version = "1.0.128", features = ["derive"] }
@@ -25,3 +26,4 @@ tokio-stream = "0.1.17"
 parking_lot = { version =  "0.12.4" }
 sha2 = "0.10.9"
 hex = "0.4.3"
+thiserror = "2.0.17"
