@@ -5,10 +5,11 @@ use k256::{
 use primitives::{
     signature::Signature,
     transaction::{SignedTransaction, Transaction},
+    types::Address,
 };
 use sha2::{Digest, Sha256};
 
-pub fn create_key_pairs(seed: &[u8]) -> (SigningKey, Vec<u8>) {
+pub fn create_key_pairs(seed: &[u8]) -> (SigningKey, Address) {
     let private_key_random = Sha256::digest(&seed);
     let signing_key = SigningKey::from_bytes(&private_key_random).unwrap();
 
@@ -16,6 +17,7 @@ pub fn create_key_pairs(seed: &[u8]) -> (SigningKey, Vec<u8>) {
     let pubkey_uncompressed: EncodedPoint = verifying_key.to_encoded_point(false);
     let pubkey_bytes = pubkey_uncompressed.as_bytes();
     let address = pubkey_bytes[pubkey_bytes.len() - 20..].to_vec();
+    let address = Address::from_byte(address.try_into().unwrap());
     (signing_key, address)
 }
 

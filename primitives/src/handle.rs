@@ -1,11 +1,19 @@
-use std::{fmt::Debug, net::{IpAddr, Ipv4Addr, SocketAddr}};
+use std::{
+    fmt::Debug,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 
-use alloy_primitives::{B256};
+use alloy_primitives::B256;
 use colored::Colorize;
 
-use crate::{block::{Block, Header, Payload, PayloadHeader}, error::DecodeError, transaction::{Recovered, SignedTransaction, Tx}, types::BlockHash};
+use crate::{
+    block::{Block, Header, Payload, PayloadHeader},
+    error::DecodeError,
+    transaction::{Recovered, SignedTransaction, Tx},
+    types::BlockHash,
+};
 
-pub trait Handle: Send + Sync + std::fmt::Debug{
+pub trait Handle: Send + Sync + std::fmt::Debug {
     type Msg: Send + Sync;
 
     fn send(&self, msg: Self::Msg);
@@ -13,9 +21,7 @@ pub trait Handle: Send + Sync + std::fmt::Debug{
 
 #[derive(Debug)]
 pub enum NetworkHandleMessage {
-    PeerConnectionTest{
-        peer: SocketAddr
-    },
+    PeerConnectionTest { peer: SocketAddr },
     NewTransaction(SignedTransaction),
     NewPayload(Block),
     BroadcastBlock(Block),
@@ -28,7 +34,7 @@ pub enum NetworkHandleMessage {
     BroadcastTransaction(SignedTransaction),
     ReorgChainData,
     RequestChainData(IpAddr, u16),
-    RespondChainDataResult(u64, Vec<BlockHash>)
+    RespondChainDataResult(u64, Vec<BlockHash>),
 }
 
 impl NetworkHandleMessage {
@@ -55,11 +61,10 @@ impl NetworkHandleMessage {
                 raw
             }
             Self::NewPayload(block) => {
-
                 let msg_type = 0x02 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut data = block.encode_ref();
-                let payload_length= data.len();
+                let payload_length = data.len();
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -80,7 +85,7 @@ impl NetworkHandleMessage {
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let mut port = port.to_be_bytes().to_vec();
-                let payload_length = ip_addr.len() + port.len();
+                let payload_length = from.len() + ip_addr.len() + port.len();
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -96,7 +101,7 @@ impl NetworkHandleMessage {
                 let protocol_version = 0x00 as u8;
                 let data = from.to_be_bytes();
                 let payload_length = data.len();
-                let mut raw =vec![msg_type, protocol_version];
+                let mut raw = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
                 raw.extend_from_slice(&data);
                 raw
@@ -109,7 +114,7 @@ impl NetworkHandleMessage {
                 raw.extend_from_slice(&payload_length.to_be_bytes());
                 raw
             }
-            Self::HandShake(pid ,ip_addr, port) => {
+            Self::HandShake(pid, ip_addr, port) => {
                 let msg_type = 0x07 as u8;
                 let protocol_version = 0x00 as u8;
                 let pid = pid.to_be_bytes();
@@ -198,7 +203,10 @@ impl NetworkHandleMessage {
     // Second Byte: Payload Length
     // Third Byte: Protocol Version
     // remains: Data
-    pub fn decode(buf: &[u8], addr: SocketAddr) -> Result<Option<NetworkHandleMessage>, DecodeError>{
+    pub fn decode(
+        buf: &[u8],
+        addr: SocketAddr,
+    ) -> Result<Option<NetworkHandleMessage>, DecodeError> {
         if buf.len() < 3 {
             println!("Here1");
             return Ok(None);
@@ -224,7 +232,9 @@ impl NetworkHandleMessage {
 
         match msg_type {
             // PeerConnectionTest
-            0x00 => Ok(Some(NetworkHandleMessage::PeerConnectionTest{peer: addr})),
+            0x00 => Ok(Some(NetworkHandleMessage::PeerConnectionTest {
+                peer: addr,
+            })),
             // NewTransaction
             0x01 => {
                 let (signed, _) = SignedTransaction::decode(&data.to_vec())?;
@@ -245,13 +255,14 @@ impl NetworkHandleMessage {
                 let from = u64::from_be_bytes(arr);
                 let mut arr = [0u8; 4];
                 arr.copy_from_slice(&data[8..12]);
-                let ip_addr = IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::RequestDataResponse(from, ip_addr, port)))
-
-                
+                Ok(Some(NetworkHandleMessage::RequestDataResponse(
+                    from, ip_addr, port,
+                )))
             }
 
             // Handshake
@@ -264,11 +275,14 @@ impl NetworkHandleMessage {
                 let pid = usize::from_be_bytes(arr);
                 let mut arr = [0u8; 4];
                 arr.copy_from_slice(&data[8..12]);
-                let ip_addr = IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::HandShake(pid as u64, ip_addr, port)))
+                Ok(Some(NetworkHandleMessage::HandShake(
+                    pid as u64, ip_addr, port,
+                )))
             }
             // Hello
             0x08 => {
@@ -280,7 +294,8 @@ impl NetworkHandleMessage {
                 let pid = usize::from_be_bytes(arr);
                 let mut arr = [0u8; 4];
                 arr.copy_from_slice(&data[8..12]);
-                let ip_addr = IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
@@ -292,7 +307,8 @@ impl NetworkHandleMessage {
                 }
                 let mut arr = [0u8; 4];
                 arr.copy_from_slice(&data[0..4]);
-                let ip_addr = IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[4..6]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
@@ -306,11 +322,13 @@ impl NetworkHandleMessage {
                 let mut hash_vec: Vec<BlockHash> = Vec::new();
                 for i in 0..len {
                     let start: usize = 8 + i as usize * 32;
-                    let block_hash = B256::from_slice(&data[start..start+32]);
+                    let block_hash = B256::from_slice(&data[start..start + 32]);
                     hash_vec.push(BlockHash::from(block_hash));
                 }
 
-                Ok(Some(NetworkHandleMessage::RespondChainDataResult(len, hash_vec)))
+                Ok(Some(NetworkHandleMessage::RespondChainDataResult(
+                    len, hash_vec,
+                )))
             }
             _ => {
                 println!("Here4");
@@ -463,7 +481,6 @@ impl fmt::Display for NetworkHandleMessage {
     }
 }
 
-
 #[derive(Debug)]
 pub enum ConsensusHandleMessage {
     ImportBlock(Block),
@@ -528,7 +545,6 @@ impl fmt::Display for PayloadBuilderHandleMessage {
     }
 }
 
-
 #[derive(Debug)]
 pub enum PayloadBuilderResultMessage {
     Payload(Payload),
@@ -558,7 +574,6 @@ impl fmt::Display for PayloadBuilderResultMessage {
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum MinerHandleMessage {

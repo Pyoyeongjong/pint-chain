@@ -177,8 +177,12 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
                     Ok(account) => {
                         result = match account {
                             Some(account) => {
-                                let string = format!("{} {}", account.nonce(), account.balance());
-                                json!(string)
+                                let nonce = format!("{}", account.nonce());
+                                let balance = format!("{}", account.balance());
+                                json!({
+                                    "nonce": nonce,
+                                    "balance": balance
+                                })
                             }
                             None => json!("No account info"),
                         };

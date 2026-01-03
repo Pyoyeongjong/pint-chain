@@ -1,4 +1,7 @@
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    net::{IpAddr, SocketAddr},
+    time::Duration,
+};
 
 use primitives::{
     handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage},
@@ -65,11 +68,14 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                         } else {
                             println!("New peer: {}", addr);
 
-                            if let Err(e) = socket.write_all("1".as_bytes()).await {
+                            if let Err(e) = socket.write_all("Ok".as_bytes()).await {
                                 eprintln!("[ Network ] Failed to send one-shot msg: {:?}", e);
+                                continue;
                             }
 
                             let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
+                            //TODO: 임시방편. Network 바이너리 통신 정리가 필요하다.
+                            tokio::time::sleep(Duration::from_secs(1)).await;
                             peer.send(NetworkHandleMessage::Hello(pid, this.config.address, this.config.port));
                         }
                     }
@@ -316,10 +322,24 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
             match TcpStream::connect(addr).await {
                 Ok(mut socket) => {
                     println!("Connected to node: {}", addr);
-
                     let mut buf = vec![0u8; 128];
+
                     match socket.read(&mut buf).await {
-                        Ok(n) if n > 1 => {
+                        Ok(0) => {
+                            continue;
+                        }
+                        Ok(n) => {
+                            println!("n={n}, raw={:02x?}", &buf[..n]);
+
+                            // Ok
+                            if n == 2 {
+                                let _ = self.peers.insert_new_peer(
+                                    socket,
+                                    addr,
+                                    self.networ_handle.clone(),
+                                );
+                                break;
+                            }
                             let msg = String::from_utf8_lossy(&buf[..n]);
                             println!("Boot node redirect: {}", msg);
 
@@ -329,14 +349,6 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             } else {
                                 eprintln!("Invalid redirect address received: {}", msg);
                             }
-                        }
-                        Ok(_) => {
-                            let _ = self.peers.insert_new_peer(
-                                socket,
-                                addr,
-                                self.networ_handle.clone(),
-                            );
-                            break;
                         }
                         Err(e) => {
                             eprintln!("Failed to read from node {}: {:?}", addr, e);
