@@ -46,7 +46,9 @@ async fn e2e_single_node_basic() {
         value: U256::from(1000),
     };
 
-    let signed = create_signed(key_pint, tx);
+    let signed = create_signed(&key_pint, tx);
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
     let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
 
     // Wait enough time for mining block..
@@ -76,6 +78,21 @@ async fn e2e_single_node_basic() {
             .await
             .expect("Account must exists");
     assert_eq!(balance, 5);
+
+    for i in 1..5 {
+        let tx = Transaction {
+            chain_id: 0,
+            nonce: 5 - i,
+            to: addr_apple,
+            fee: 5 * i as u128,
+            value: U256::from(1000 * i),
+        };
+
+        let signed = create_signed(&key_pint, tx);
+        let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
+    }
+    // Wait enough time for mining block..
+    tokio::time::sleep(Duration::from_secs(15)).await;
 }
 
 #[tokio::test]
@@ -104,7 +121,8 @@ async fn e2e_multi_node_basic() {
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     let (key_pint, addr_pint) = create_key_pairs("pint".as_bytes());
-    let (_key_apple, addr_apple) = create_key_pairs("banana".as_bytes());
+    let (_key_apple, addr_apple) = create_key_pairs("apple".as_bytes());
+    let (_key_banana, _addr_banana) = create_key_pairs("banana".as_bytes());
 
     tokio::time::sleep(Duration::from_secs(3)).await;
 
@@ -120,7 +138,7 @@ async fn e2e_multi_node_basic() {
         value: U256::from(1000),
     };
 
-    let signed = create_signed(key_pint, tx);
+    let signed = create_signed(&key_pint, tx);
     let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
 
     // Wait enough time for mining block..
@@ -172,4 +190,19 @@ async fn e2e_multi_node_basic() {
         .expect("Can't get block height from node!");
     //
     assert_eq!(block_height, 1);
+
+    for i in 1..5 {
+        let tx = Transaction {
+            chain_id: 0,
+            nonce: 5 - i,
+            to: addr_apple,
+            fee: 5 * i as u128,
+            value: U256::from(1000 * i),
+        };
+
+        let signed = create_signed(&key_pint, tx);
+        let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
+    }
+    // Wait enough time for mining block..
+    tokio::time::sleep(Duration::from_secs(15)).await;
 }

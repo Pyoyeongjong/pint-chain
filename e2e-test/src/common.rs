@@ -21,7 +21,7 @@ pub fn create_key_pairs(seed: &[u8]) -> (SigningKey, Address) {
     (signing_key, address)
 }
 
-pub fn create_signed(signing_key: SigningKey, tx: Transaction) -> SignedTransaction {
+pub fn create_signed(signing_key: &SigningKey, tx: Transaction) -> SignedTransaction {
     let tx_hash = tx.encode_for_signing();
     let digest = Sha256::new_with_prefix(tx_hash.hash());
     let (sig, recid): (ECDSASig, RecoveryId) = signing_key.sign_digest_recoverable(digest).unwrap();
