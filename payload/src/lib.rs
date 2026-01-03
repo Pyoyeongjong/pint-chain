@@ -87,8 +87,8 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
                             let difficulty = provider.get_next_difficulty();
                             let parent_header = provider.db().get_latest_block_header();
 
-                            //TODO: spawn 또는 spawn_blocking 등이 에러로 강제종료 될 때를 대비해 JoinHandle을 받아놓고, tokio::task 를 하나 더만들어서
-                            //실패 결과를 로그로 찍는 것이 이상적이다.
+                            // TODO: spawn 또는 spawn_blocking 등이 에러로 강제종료 될 때를 대비해 JoinHandle을 받아놓고, tokio::task 를 하나 더만들어서
+                            // 실패 결과를 로그로 찍는 것이 이상적이다.
                             tokio::task::spawn_blocking(move || {
                                 match default_paylod(
                                     BuildArguments::new(address, parent_header, difficulty),

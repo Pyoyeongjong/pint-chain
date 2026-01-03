@@ -27,3 +27,4 @@ parking_lot = { version =  "0.12.4" }
 sha2 = "0.10.9"
 hex = "0.4.3"
 thiserror = "2.0.17"
+tokio-util = "0.7.17"

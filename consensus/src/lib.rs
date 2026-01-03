@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use payload::handle::PayloadBuilderHandle;
 use primitives::{
     block::{Block, Payload},
@@ -111,6 +109,11 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
 
                                 consensus_handle.send(ConsensusHandleMessage::ImportBlock(block));
                             }
+                            MinerResultMessage::MiningHalted => {
+                                println!("[ Consensus ] Mining task halted");
+                                // 현재 진행하던 채굴이 종료되었을 경우.(성공적 채굴을 했거나, 강제 종료 당했을 때.)
+                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
+                            }
                         }
                     }
 
@@ -121,12 +124,10 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 println!("[ Consensus ] Accepted payload");
                                 if payload.body.len() == 0 {
                                     println!("[ Consensus ] Payload with no body. Wait for new Transaction..");
-                                    let builder_handle_cloned = builder_handle.clone();
-                                    tokio::spawn(async move {
-                                        //TODO: Notify를 활용해서 꺠우는 것도 가능할 듯?
-                                        tokio::time::sleep(Duration::from_secs(5)).await;
-                                        builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
-                                    });
+                                    // let builder_handle_cloned = builder_handle.clone();
+                                    // tokio::spawn(async move {
+                                    //     next_payload_build_task(builder_handle_cloned).await;
+                                    // });
                                 } else {
                                     let miner_handle_cloned = miner_handle.clone();
                                     miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
@@ -135,12 +136,11 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
 
                             }
                             PayloadBuilderResultMessage::PoolIsEmpty => {
-                                let builder_handle_cloned = builder_handle.clone();
-                                tokio::spawn(async move {
-                                    //TODO: Notify를 활용해서 꺠우는 것도 가능할 듯 2?
-                                    tokio::time::sleep(Duration::from_secs(5)).await;
-                                    builder_handle_cloned.send(PayloadBuilderHandleMessage::BuildPayload);
-                                });
+                                println!("[ Consensus ] There are no txs in pending pool. Wait for new Transaction..");
+                                // let builder_handle_cloned = builder_handle.clone();
+                                // tokio::spawn(async move {
+                                //     next_payload_build_task(builder_handle_cloned).await;
+                                // });
                             }
                         }
                     }
@@ -174,10 +174,12 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 pool.remove_block_transactions(&block);
                                 pool.reorganize_pool();
                                 latest_payload = None;
+                                miner_handle.send(MinerHandleMessage::HaltMining);
                                 network.send(NetworkHandleMessage::BroadcastBlock(block));
-                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
                             ConsensusHandleMessage::NewTransaction(_recovered) => {
+                                // 무조건 보낼까?
+                                builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                                 // update current payload (maybe?)
                                 // pass now
                             }

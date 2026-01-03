@@ -43,7 +43,7 @@ impl NetworkHandleMessage {
             Self::PeerConnectionTest { peer: _ } => {
                 let msg_type = 0x00 as u8;
                 let protocol_version = 0x00 as u8;
-                let payload_length = 0x00 as usize;
+                let payload_length = 0x00 as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -53,7 +53,7 @@ impl NetworkHandleMessage {
                 let msg_type = 0x01 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut data = signed.encode();
-                let payload_length = data.len();
+                let payload_length = data.len() as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -64,7 +64,7 @@ impl NetworkHandleMessage {
                 let msg_type = 0x02 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut data = block.encode_ref();
-                let payload_length = data.len();
+                let payload_length = data.len() as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -85,7 +85,7 @@ impl NetworkHandleMessage {
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let mut port = port.to_be_bytes().to_vec();
-                let payload_length = from.len() + ip_addr.len() + port.len();
+                let payload_length = (from.len() + ip_addr.len() + port.len()) as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -100,7 +100,7 @@ impl NetworkHandleMessage {
                 let msg_type = 0x05 as u8;
                 let protocol_version = 0x00 as u8;
                 let data = from.to_be_bytes();
-                let payload_length = data.len();
+                let payload_length = data.len() as u64;
                 let mut raw = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
                 raw.extend_from_slice(&data);
@@ -109,7 +109,7 @@ impl NetworkHandleMessage {
             Self::RequestDataResponseFinished => {
                 let msg_type = 0x06 as u8;
                 let protocol_version = 0x00 as u8;
-                let payload_length = 0x00 as usize;
+                let payload_length = 0x00 as u64;
                 let mut raw = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
                 raw
@@ -123,7 +123,7 @@ impl NetworkHandleMessage {
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let port = port.to_be_bytes();
-                let payload_length = pid.len() + ip_addr.len() + port.len();
+                let payload_length = (pid.len() + ip_addr.len() + port.len()) as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -141,7 +141,7 @@ impl NetworkHandleMessage {
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let port = port.to_be_bytes();
-                let payload_length = pid.len() + ip_addr.len() + port.len();
+                let payload_length = (pid.len() + ip_addr.len() + port.len()) as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -173,7 +173,7 @@ impl NetworkHandleMessage {
                     IpAddr::V6(v6) => v6.octets().to_vec(),
                 };
                 let port = port.to_be_bytes();
-                let payload_length = ip_addr.len() + port.len();
+                let payload_length = (ip_addr.len() + port.len()) as u64;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -184,7 +184,7 @@ impl NetworkHandleMessage {
             Self::RespondChainDataResult(len, vec) => {
                 let msg_type = 0x13 as u8;
                 let protocol_version = 0x00 as u8;
-                let payload_length = (32 * (*len) as usize) + 8;
+                let payload_length = (32 * (*len) as u64) + 8;
 
                 let mut raw: Vec<u8> = vec![msg_type, protocol_version];
                 raw.extend_from_slice(&payload_length.to_be_bytes());
@@ -216,9 +216,9 @@ impl NetworkHandleMessage {
         let protocol_version = buf[1];
         let mut payload_len_raw = [0u8; 8];
         payload_len_raw.copy_from_slice(&buf[2..10]);
-        let payload_length = usize::from_be_bytes(payload_len_raw);
+        let payload_length = usize::from_be_bytes(payload_len_raw) as u64;
 
-        if buf.len() < 10 + payload_length {
+        if (buf.len() as u64) < (10 + payload_length) {
             eprintln!("Too short raw data.");
             return Ok(None);
         }
@@ -578,11 +578,13 @@ impl fmt::Display for PayloadBuilderResultMessage {
 #[derive(Debug)]
 pub enum MinerHandleMessage {
     NewPayload(PayloadHeader),
+    HaltMining,
 }
 
 #[derive(Debug)]
 pub enum MinerResultMessage {
     MiningSuccess(Header),
+    MiningHalted,
 }
 
 impl fmt::Display for MinerHandleMessage {
@@ -598,6 +600,14 @@ impl fmt::Display for MinerHandleMessage {
                     header.previous_hash,
                     header.difficulty.to_string().magenta(),
                     header.timestamp.to_string().white()
+                )
+            }
+            MinerHandleMessage::HaltMining => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[MinerHandle]".bold().green(),
+                    "Halt Mining".bold().yellow()
                 )
             }
         }
@@ -617,6 +627,14 @@ impl fmt::Display for MinerResultMessage {
                     header.calculate_hash(),
                     header.difficulty.to_string().magenta(),
                     header.timestamp.to_string().white()
+                )
+            }
+            MinerResultMessage::MiningHalted => {
+                write!(
+                    f,
+                    "{} {}",
+                    "[MinerResult]".bold().green(),
+                    "MiningHalted".bold().yellow()
                 )
             }
         }

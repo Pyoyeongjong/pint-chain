@@ -1,6 +1,9 @@
 pub mod handle;
 
-use std::sync::{Arc, atomic::AtomicU64};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+};
 
 use primitives::{
     handle::{MinerHandleMessage, MinerResultMessage},
@@ -16,7 +19,7 @@ pub struct Miner {
     miner_rx: UnboundedReceiver<MinerHandleMessage>,
     consensus_tx: UnboundedSender<MinerResultMessage>,
     epoch: Arc<AtomicU64>,
-    worker: usize,
+    worker: Arc<AtomicUsize>,
 }
 
 impl Miner {
@@ -28,7 +31,7 @@ impl Miner {
             miner_rx,
             consensus_tx,
             epoch: Default::default(),
-            worker: 0,
+            worker: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -41,6 +44,7 @@ impl Miner {
                 epoch,
                 worker,
             } = self;
+            let mut token: Option<tokio_util::sync::CancellationToken> = None;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
                     println!("[ Miner ] Miner received message: {}", msg);
@@ -49,7 +53,6 @@ impl Miner {
                             // spawn payload mining task
                             let consensus_tx = consensus_tx.clone();
                             let _epoch = epoch.clone();
-                            let _worker = worker.clone();
 
                             // this order should be same as header hash function
                             let mut hasher = Sha256::new();
@@ -61,15 +64,31 @@ impl Miner {
                             hasher.update(payload_header.difficulty.to_be_bytes());
                             hasher.update(payload_header.height.to_be_bytes());
 
+                            token = Some(tokio_util::sync::CancellationToken::new());
+                            let child = token.as_ref().unwrap().child_token();
+
+                            worker.fetch_add(1, Ordering::Relaxed);
+                            let worker_cloned = worker.clone();
+
                             tokio::task::spawn_blocking(move || {
                                 let mut nonce: u64 = 0;
                                 let difficulty = payload_header.difficulty;
                                 loop {
+                                    if nonce % 10000 == 0 && child.is_cancelled() {
+                                        worker_cloned.fetch_sub(1, Ordering::Relaxed);
+                                        if let Err(e) =
+                                            consensus_tx.send(MinerResultMessage::MiningHalted)
+                                        {
+                                            eprintln!("Failed to send MingResultMessage: {:?}", e)
+                                        }
+                                        return;
+                                    }
                                     let mut new_hasher = hasher.clone();
                                     new_hasher.update(nonce.to_be_bytes());
                                     let result = B256::from_slice(&new_hasher.finalize());
                                     if meets_target(result, difficulty) {
                                         // Mining Ok!
+                                        worker_cloned.fetch_sub(1, Ordering::Relaxed);
                                         let header = payload_header.clone().into_header(nonce);
                                         if let Err(e) = consensus_tx
                                             .send(MinerResultMessage::MiningSuccess(header))
@@ -81,6 +100,18 @@ impl Miner {
                                     nonce += 1;
                                 }
                             });
+                        }
+                        MinerHandleMessage::HaltMining => {
+                            if worker.load(Ordering::Relaxed) == 0 {
+                                if let Err(e) = consensus_tx.send(MinerResultMessage::MiningHalted)
+                                {
+                                    eprintln!("Failed to send MingResultMessage: {:?}", e)
+                                }
+                            } else {
+                                // MinerResultMessage will be sent by mining task!
+                                token.map(|token| token.cancel());
+                                token = None;
+                            }
                         }
                     }
                 }

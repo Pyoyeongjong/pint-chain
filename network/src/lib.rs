@@ -103,7 +103,11 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                         continue;
                                     }
                                 };
+                                let recovered_cloned = recovered.clone();
                                 let res = this.pool.add_transaction(origin, recovered);
+                                if this.pool.check_pending_pool_len() >= 1 {
+                                    this.consensus.send(ConsensusHandleMessage::NewTransaction(recovered_cloned));
+                                }
 
                                 match res {
                                     Ok(_tx_hash) => {

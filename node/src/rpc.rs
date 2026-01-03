@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::State};
 use primitives::{
-    handle::NetworkHandleMessage,
+    handle::{ConsensusHandleMessage, NetworkHandleMessage},
     transaction::SignedTransaction,
     types::{Address, B256, TxHash},
 };
@@ -93,6 +93,7 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
                         });
                     }
                 };
+                let recovered_cloned = recovered.clone();
                 let tx_hash = match node.pool.add_transaction(origin, recovered) {
                     Ok(tx_hash) => tx_hash,
                     Err(e) => match e.kind {
@@ -146,6 +147,11 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
                 result = json!(tx_hash.hash().to_string());
                 node.network
                     .send(NetworkHandleMessage::BroadcastTransaction(signed_tx));
+
+                if node.pool.check_pending_pool_len() >= 1 {
+                    node.consensus
+                        .send(ConsensusHandleMessage::NewTransaction(recovered_cloned));
+                }
             } else {
                 result = json!("There is no new transaction");
             }
@@ -284,7 +290,7 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
             })
         }
         "peers" => {
-            let mut result: Value = json!("There isn't peer you want to find");
+            let result: Value = json!("There isn't peer you want to find");
 
             if let Some(raw) = req.params[0].as_str() {
                 dbg!(raw);
