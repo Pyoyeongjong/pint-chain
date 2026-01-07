@@ -122,7 +122,7 @@ async fn e2e_multi_node_basic() {
 
     let (key_pint, addr_pint) = create_key_pairs("pint".as_bytes());
     let (_key_apple, addr_apple) = create_key_pairs("apple".as_bytes());
-    let (_key_banana, _addr_banana) = create_key_pairs("banana".as_bytes());
+    let (_key_banana, addr_banana) = create_key_pairs("banana".as_bytes());
 
     tokio::time::sleep(Duration::from_secs(3)).await;
 
@@ -202,7 +202,18 @@ async fn e2e_multi_node_basic() {
 
         let signed = create_signed(&key_pint, tx);
         let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
+
+        let tx = Transaction {
+            chain_id: 0,
+            nonce: 4 - i,
+            to: addr_banana,
+            fee: 5 * i as u128,
+            value: U256::from(1000 * i),
+        };
+
+        let signed = create_signed(&_key_apple, tx);
+        let _ = send_tx_to_rpc(signed.clone(), boot_node_url).await.unwrap();
     }
     // Wait enough time for mining block..
-    tokio::time::sleep(Duration::from_secs(15)).await;
+    tokio::time::sleep(Duration::from_secs(30)).await;
 }

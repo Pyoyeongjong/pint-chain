@@ -206,10 +206,9 @@ impl NetworkHandleMessage {
     pub fn decode(
         buf: &[u8],
         addr: SocketAddr,
-    ) -> Result<Option<NetworkHandleMessage>, DecodeError> {
+    ) -> Result<(Option<NetworkHandleMessage>, usize), DecodeError> {
         if buf.len() < 3 {
-            println!("Here1");
-            return Ok(None);
+            return Ok((None, buf.len()));
         }
 
         let msg_type = buf[0];
@@ -220,30 +219,32 @@ impl NetworkHandleMessage {
 
         if (buf.len() as u64) < (10 + payload_length) {
             eprintln!("Too short raw data.");
-            return Ok(None);
+            return Ok((None, buf.len()));
         }
 
         if protocol_version > 0 {
             println!("Not proper protocol version.");
-            return Ok(None);
+            return Ok((None, buf.len()));
         }
 
         let data = &buf[10..];
-
+        let mut buf_used = 10;
         match msg_type {
             // PeerConnectionTest
-            0x00 => Ok(Some(NetworkHandleMessage::PeerConnectionTest {
-                peer: addr,
-            })),
+            0x00 => Ok((
+                Some(NetworkHandleMessage::PeerConnectionTest { peer: addr }),
+                buf_used,
+            )),
             // NewTransaction
             0x01 => {
                 let (signed, _) = SignedTransaction::decode(&data.to_vec())?;
-                Ok(Some(NetworkHandleMessage::NewTransaction(signed)))
+                Ok((Some(NetworkHandleMessage::NewTransaction(signed)), buf_used))
             }
             // NewPayload
             0x02 => {
-                let block = Block::decode(&data.to_vec())?;
-                Ok(Some(NetworkHandleMessage::NewPayload(block)))
+                let (block, used) = Block::decode(&data.to_vec())?;
+                buf_used += used;
+                Ok((Some(NetworkHandleMessage::NewPayload(block)), buf_used))
             }
             // RequestDataResponse
             0x04 => {
@@ -260,9 +261,13 @@ impl NetworkHandleMessage {
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::RequestDataResponse(
-                    from, ip_addr, port,
-                )))
+                buf_used += 14;
+                Ok((
+                    Some(NetworkHandleMessage::RequestDataResponse(
+                        from, ip_addr, port,
+                    )),
+                    buf_used,
+                ))
             }
 
             // Handshake
@@ -280,9 +285,11 @@ impl NetworkHandleMessage {
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::HandShake(
-                    pid as u64, ip_addr, port,
-                )))
+                buf_used += 14;
+                Ok((
+                    Some(NetworkHandleMessage::HandShake(pid as u64, ip_addr, port)),
+                    buf_used,
+                ))
             }
             // Hello
             0x08 => {
@@ -299,7 +306,11 @@ impl NetworkHandleMessage {
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[12..14]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::Hello(pid as u64, ip_addr, port)))
+                buf_used += 14;
+                Ok((
+                    Some(NetworkHandleMessage::Hello(pid as u64, ip_addr, port)),
+                    buf_used,
+                ))
             }
             0x12 => {
                 if data.len() < 6 {
@@ -312,28 +323,32 @@ impl NetworkHandleMessage {
                 let mut arr2 = [0u8; 2];
                 arr2.copy_from_slice(&data[4..6]);
                 let port = u16::from_be_bytes(arr2.try_into().unwrap());
-                Ok(Some(NetworkHandleMessage::RequestChainData(ip_addr, port)))
+                buf_used += 6;
+                Ok((
+                    Some(NetworkHandleMessage::RequestChainData(ip_addr, port)),
+                    buf_used,
+                ))
             }
             0x13 => {
                 let mut arr = [0u8; 8];
                 arr.copy_from_slice(&data[0..8]);
                 let len = u64::from_be_bytes(arr);
+                buf_used += 8;
 
                 let mut hash_vec: Vec<BlockHash> = Vec::new();
                 for i in 0..len {
                     let start: usize = 8 + i as usize * 32;
                     let block_hash = B256::from_slice(&data[start..start + 32]);
                     hash_vec.push(BlockHash::from(block_hash));
+                    buf_used += 32;
                 }
 
-                Ok(Some(NetworkHandleMessage::RespondChainDataResult(
-                    len, hash_vec,
-                )))
+                Ok((
+                    Some(NetworkHandleMessage::RespondChainDataResult(len, hash_vec)),
+                    buf_used,
+                ))
             }
-            _ => {
-                println!("Here4");
-                Ok(None)
-            }
+            _ => Ok((None, buf.len())),
         }
     }
 }

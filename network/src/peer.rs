@@ -1,8 +1,13 @@
-use std::{net::SocketAddr, sync::{Arc}};
+use std::{net::SocketAddr, sync::Arc};
 
 use parking_lot::RwLock;
 use primitives::handle::Handle;
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpStream, select, sync::{mpsc::{self, UnboundedSender}}};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    select,
+    sync::mpsc::{self, UnboundedSender},
+};
 
 use crate::{NetworkHandle, NetworkHandleMessage};
 
@@ -15,7 +20,7 @@ pub struct Peer {
 
 impl Peer {
     pub fn new(id: u64, addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
-        Self { id ,addr, tx }
+        Self { id, addr, tx }
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
@@ -38,7 +43,6 @@ impl Peer {
     }
 }
 
-
 #[derive(Debug)]
 pub struct PeerList {
     pub submission_id: u64,
@@ -49,7 +53,7 @@ impl PeerList {
     pub fn new() -> Self {
         Self {
             submission_id: 0,
-            peers: Arc::new(RwLock::new(Vec::new()))
+            peers: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -84,7 +88,12 @@ impl PeerList {
 }
 
 impl PeerList {
-    pub fn insert_new_peer(&mut self, socket: TcpStream, addr: SocketAddr, network_handle: NetworkHandle) -> (Peer, u64) {
+    pub fn insert_new_peer(
+        &mut self,
+        socket: TcpStream,
+        addr: SocketAddr,
+        network_handle: NetworkHandle,
+    ) -> (Peer, u64) {
         let pid = self.get_id();
         let (tx, mut rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
         // tx is used for every componets who want to send peer msg
@@ -108,21 +117,28 @@ impl PeerList {
                     }
                     Ok(n) => {
                         println!("encoded {} data incomed", n);
+                        let mut off: usize = 0;
 
-                        match NetworkHandleMessage::decode(&buf[..n], addr) {
-                            Ok(res) => {
-                                match res {
+                        while off < n {
+                            match NetworkHandleMessage::decode(&buf[off..n], addr) {
+                                Ok((res, used)) => match res {
                                     Some(decoded) => {
                                         let _ = network_handle.send(decoded);
+                                        off += used;
                                     }
-                                    None =>  {
+                                    None => {
                                         eprintln!("Invalid Request from Peer: {:?}", addr);
+                                        off += used;
                                     }
+                                },
+
+                                Err(e) => {
+                                    eprintln!(
+                                        "Failed to decode Network handle message: {:?} from {:?}",
+                                        e, addr
+                                    );
+                                    continue;
                                 }
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to decode Network handle message: {:?} from {:?}", e, addr);
-                                continue;
                             }
                         }
                     }
@@ -146,12 +162,12 @@ impl PeerList {
         };
 
         let peers_ref = self.peers.clone();
-        
-        tokio::spawn(async move{
+
+        tokio::spawn(async move {
             select! {
-            _ = incoming => {},
-            _ = outgoing => {}
-        }
+                _ = incoming => {},
+                _ = outgoing => {}
+            }
 
             println!("Peer {:?} disconnected.", addr);
             let mut peers = peers_ref.write();
@@ -161,5 +177,3 @@ impl PeerList {
         (new_peer, pid as u64)
     }
 }
-
-

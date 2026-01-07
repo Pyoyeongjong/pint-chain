@@ -2,16 +2,23 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use primitives::handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage};
 use provider::{DatabaseTrait, ProviderFactory};
-use tokio::{net::TcpListener};
+use tokio::net::TcpListener;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use transaction_pool::Pool;
 
-use crate::{error::NetworkStartError, peer::PeerList, NetworkHandle, NetworkManager};
+use crate::{NetworkHandle, NetworkManager, error::NetworkStartError, peer::PeerList};
 
 pub struct NetworkBuilder;
 
 impl NetworkBuilder {
-    pub async fn start_network<DB: DatabaseTrait + Send + Sync + 'static>(network_handle: NetworkHandle, rx_stream: UnboundedReceiverStream<NetworkHandleMessage>, consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>, pool: Pool<DB>, provider: ProviderFactory<DB>, cfg: NetworkConfig) -> Result<NetworkHandle, NetworkStartError> {
+    pub async fn start_network<DB: DatabaseTrait + Send + Sync + 'static>(
+        network_handle: NetworkHandle,
+        rx_stream: UnboundedReceiverStream<NetworkHandleMessage>,
+        consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
+        pool: Pool<DB>,
+        provider: ProviderFactory<DB>,
+        cfg: NetworkConfig,
+    ) -> Result<NetworkHandle, NetworkStartError> {
         // Server Binding
         let listener = match TcpListener::bind((cfg.address, cfg.port)).await {
             Ok(listner) => listner,
@@ -21,7 +28,7 @@ impl NetworkBuilder {
         let mut network_manager = NetworkManager {
             listener,
             provider,
-            networ_handle: network_handle.clone(),
+            network_handle: network_handle.clone(),
             from_handle_rx: rx_stream,
             pool,
             peers: PeerList::new(),
@@ -31,7 +38,9 @@ impl NetworkBuilder {
 
         // Finding peer from Boot Node
         // Initially, I implemented function that connects only boot node and never fails.
-        network_manager.connect_with_boot_node(cfg.address, cfg.port, &cfg.boot_node).await;
+        network_manager
+            .connect_with_boot_node(cfg.address, cfg.port, &cfg.boot_node)
+            .await;
         // Network loop Start
         network_manager.start_loop(cfg.boot_node.is_boot_node());
 
@@ -79,6 +88,10 @@ impl BootNode {
 
 impl Default for BootNode {
     fn default() -> Self {
-        Self { is_boot_node: true, address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 33333 }
+        Self {
+            is_boot_node: true,
+            address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            port: 33333,
+        }
     }
 }

@@ -6,25 +6,24 @@ use libmdbx::orm::{Decodable, Encodable};
 use sha2::{Digest, Sha256};
 
 use crate::error::{BlockValidatioError, DecodeError};
-use crate::{transaction::SignedTransaction, types::BlockHash};
 use crate::types::{Address, B256, COINBASE_ADDR};
+use crate::{transaction::SignedTransaction, types::BlockHash};
 
 /// Block hash
 #[derive(Debug, Default, Clone)]
 pub struct Header {
     pub previous_hash: BlockHash, // 32
-    pub transaction_root: B256, // 32
-    pub state_root: B256, // 32
-    pub timestamp: u64, // 8
-    pub proposer: Address, // 20
-    pub nonce: u64, // 8
-    pub difficulty: u32, // 4
-    pub height: u64, // 8
-    pub total_fee: U256, // 32
+    pub transaction_root: B256,   // 32
+    pub state_root: B256,         // 32
+    pub timestamp: u64,           // 8
+    pub proposer: Address,        // 20
+    pub nonce: u64,               // 8
+    pub difficulty: u32,          // 4
+    pub height: u64,              // 8
+    pub total_fee: U256,          // 32
 }
 
 impl Header {
-
     pub fn genesis_header() -> Self {
         Self {
             previous_hash: Default::default(),
@@ -83,19 +82,18 @@ impl Header {
 }
 
 #[derive(Debug, Clone)]
-/// Block Structure 
-pub struct Block{
+/// Block Structure
+pub struct Block {
     pub header: Header,
     pub body: Vec<SignedTransaction>,
 }
 
 impl Block {
-
     pub fn genesis_block() -> Self {
         let header = Header::genesis_header();
         Self {
             header,
-            body: Vec::new()
+            body: Vec::new(),
         }
     }
 
@@ -112,29 +110,29 @@ impl Block {
         res
     }
 
-    pub fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
+    pub fn decode(buf: &[u8]) -> Result<(Self, usize), DecodeError> {
+        let mut used_byte = 0;
         if buf.len() < 176 {
             return Err(DecodeError::TooShortRawData(buf.to_vec()));
         }
 
         let (header_raw, mut body_raw) = buf.split_at(176);
+        used_byte += 176;
         let header = Header::decode(header_raw.try_into().unwrap());
         let mut body = Vec::new();
 
         while body_raw.len() >= 149 {
             let (tx_raw, remains) = body_raw.split_at(149);
+            used_byte += 149;
             let (signed, _) = SignedTransaction::decode(&tx_raw.to_vec()).unwrap();
             body_raw = remains;
             body.push(signed);
         }
 
-        
-        Ok(Self {
-            header, body
-        })
+        Ok((Self { header, body }, used_byte))
     }
 
-    pub fn header(&self) -> &Header{
+    pub fn header(&self) -> &Header {
         &self.header
     }
 }
@@ -173,23 +171,20 @@ impl Decodable for Block {
             body.push(signed);
         }
 
-        
-        Ok(Self {
-            header, body
-        })
+        Ok(Self { header, body })
     }
 }
 
 /// Block hash
 #[derive(Debug, Default, Clone)]
 pub struct PayloadHeader {
-    pub previous_hash: BlockHash, 
+    pub previous_hash: BlockHash,
     pub transaction_root: B256,
     pub state_root: B256,
-    pub proposer: Address, 
-    pub difficulty: u32, 
+    pub proposer: Address,
+    pub difficulty: u32,
     pub timestamp: u64,
-    pub height: u64, 
+    pub height: u64,
     pub total_fee: U256,
 }
 
@@ -204,7 +199,7 @@ impl PayloadHeader {
             nonce,
             difficulty: self.difficulty,
             height: self.height,
-            total_fee: self.total_fee
+            total_fee: self.total_fee,
         }
     }
 }
@@ -230,13 +225,19 @@ impl fmt::Display for Payload {
         writeln!(f, "    Total Fee    : {}", self.header.total_fee)?;
         writeln!(f, "  Body ({} txs):", self.body.len())?;
         for (i, tx) in self.body.iter().enumerate() {
-            writeln!(f, "    {}. hash: {:?}, to: {:?}, value: {}, fee: {}", 
-                i + 1, tx.hash, tx.tx.to, tx.tx.value, tx.tx.fee)?;
+            writeln!(
+                f,
+                "    {}. hash: {:?}, to: {:?}, value: {}, fee: {}",
+                i + 1,
+                tx.hash,
+                tx.tx.to,
+                tx.tx.value,
+                tx.tx.fee
+            )?;
         }
         write!(f, "}}")
     }
 }
-
 
 pub struct BlockValidationResult {
     pub success: bool,
@@ -259,6 +260,9 @@ impl BlockValidationResult {
 
 impl Default for BlockValidationResult {
     fn default() -> Self {
-        Self { success: false, error: Some(BlockValidatioError::DefaultError) }
+        Self {
+            success: false,
+            error: Some(BlockValidatioError::DefaultError),
+        }
     }
 }

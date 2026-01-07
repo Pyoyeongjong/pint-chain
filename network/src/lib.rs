@@ -1,7 +1,4 @@
-use std::{
-    net::{IpAddr, SocketAddr},
-    time::Duration,
-};
+use std::net::{IpAddr, SocketAddr};
 
 use primitives::{
     handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage},
@@ -30,7 +27,7 @@ pub mod peer;
 pub struct NetworkManager<DB: DatabaseTrait> {
     listener: TcpListener,
     pub provider: ProviderFactory<DB>,
-    networ_handle: NetworkHandle,
+    network_handle: NetworkHandle,
     from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
     pool: Pool<DB>,
     peers: PeerList,
@@ -73,9 +70,8 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 continue;
                             }
 
-                            let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.networ_handle.clone());
-                            //TODO: 임시방편. Network 바이너리 통신 정리가 필요하다.
-                            tokio::time::sleep(Duration::from_secs(1)).await;
+                            let (peer, pid) = this.peers.insert_new_peer(socket, addr, this.network_handle.clone());
+
                             peer.send(NetworkHandleMessage::Hello(pid, this.config.address, this.config.port));
                         }
                     }
@@ -209,7 +205,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                                 if !is_boot_node {
                                     println!("[ Network ] Try to synchronize db and mem-pool.");
-                                    this.networ_handle.send(NetworkHandleMessage::RequestData(1));
+                                    this.network_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
 
@@ -282,7 +278,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                                 break;
                                             }
                                             // then request new data
-                                            this.networ_handle.send(NetworkHandleMessage::RequestData(height+1));
+                                            this.network_handle.send(NetworkHandleMessage::RequestData(height+1));
                                             break;
                                         }
                                         Ok(None) => {
@@ -301,7 +297,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                         break;
                                     }
                                     // then request new data
-                                    this.networ_handle.send(NetworkHandleMessage::RequestData(1));
+                                    this.network_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
                         }
@@ -334,14 +330,32 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                         }
                         Ok(n) => {
                             println!("n={n}, raw={:02x?}", &buf[..n]);
-
+                            if n < 2 {
+                                continue;
+                            };
                             // Ok
-                            if n == 2 {
-                                let _ = self.peers.insert_new_peer(
+                            let msg = String::from_utf8_lossy(&buf[..2]);
+                            if msg == "Ok" {
+                                let (_peer, _) = self.peers.insert_new_peer(
                                     socket,
                                     addr,
-                                    self.networ_handle.clone(),
+                                    self.network_handle.clone(),
                                 );
+                                match NetworkHandleMessage::decode(&buf[2..n], addr) {
+                                    Ok((res, _used)) => match res {
+                                        Some(decoded) => {
+                                            let _ = self.network_handle.send(decoded);
+                                        }
+                                        None => {}
+                                    },
+
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Failed to decode Network handle message: {:?} from {:?}",
+                                            e, addr
+                                        );
+                                    }
+                                };
                                 break;
                             }
                             let msg = String::from_utf8_lossy(&buf[..n]);
@@ -373,7 +387,7 @@ impl<DB: DatabaseTrait + std::fmt::Debug> std::fmt::Debug for NetworkManager<DB>
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NetworkManager")
             .field("listener", &self.listener)
-            .field("handle", &self.networ_handle)
+            .field("handle", &self.network_handle)
             .field("from_handle_rx", &self.from_handle_rx)
             .field("pool", &self.pool)
             .field("peers", &self.peers)
