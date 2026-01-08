@@ -16,6 +16,8 @@ hex.workspace = true
 transaction_pool.workspace = true
 provider.workspace = true
 database.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 dirs = "5"
 thiserror = "2.0.17"

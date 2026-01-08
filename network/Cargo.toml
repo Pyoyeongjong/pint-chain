@@ -13,3 +13,5 @@ primitives.workspace = true
 parking_lot.workspace = true
 thiserror.workspace = true
 rand = "0.9.1"
+tracing.workspace = true
+tracing-subscriber.workspace = true

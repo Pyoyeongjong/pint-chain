@@ -5,6 +5,7 @@ use std::{
 
 use alloy_primitives::B256;
 use colored::Colorize;
+use tracing::info;
 
 use crate::{
     block::{Block, Header, Payload, PayloadHeader},
@@ -218,12 +219,11 @@ impl NetworkHandleMessage {
         let payload_length = usize::from_be_bytes(payload_len_raw) as u64;
 
         if (buf.len() as u64) < (10 + payload_length) {
-            eprintln!("Too short raw data.");
             return Ok((None, buf.len()));
         }
 
         if protocol_version > 0 {
-            println!("Not proper protocol version.");
+            info!("Not proper protocol version.");
             return Ok((None, buf.len()));
         }
 
@@ -362,27 +362,25 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} {}",
-                    "[Network]".bold().green(),
-                    "PeerConnectionTest".bold().yellow(),
-                    peer.to_string().cyan()
+                    "[Network]",
+                    "PeerConnectionTest",
+                    peer.to_string()
                 )
             }
             NetworkHandleMessage::NewTransaction(tx) => {
                 write!(
                     f,
                     "{} {} hash: {:?}",
-                    "[Network]".bold().green(),
-                    "NewTransaction".bold().yellow(),
-                    tx.hash
+                    "[Network]", "NewTransaction", tx.hash
                 )
             }
             NetworkHandleMessage::NewPayload(block) => {
                 write!(
                     f,
                     "{} {} height: {}, hash: {:?}",
-                    "[Network]".bold().green(),
-                    "NewPayload".bold().yellow(),
-                    block.header.height.to_string().cyan(),
+                    "[Network]",
+                    "NewPayload",
+                    block.header.height.to_string(),
                     block.header().calculate_hash()
                 )
             }
@@ -390,9 +388,9 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} height: {}, hash: {:?}",
-                    "[Network]".bold().green(),
-                    "BroadcastBlock".bold().yellow(),
-                    block.header.height.to_string().cyan(),
+                    "[Network]",
+                    "BroadcastBlock",
+                    block.header.height.to_string(),
                     block.header().calculate_hash()
                 )
             }
@@ -400,9 +398,9 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} block_no: {}, addr: {}:{}",
-                    "[Network]".bold().green(),
-                    "RequestDataResponse".bold().yellow(),
-                    num.to_string().cyan(),
+                    "[Network]",
+                    "RequestDataResponse",
+                    num.to_string(),
                     ip,
                     port
                 )
@@ -411,26 +409,21 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} block_no: {}",
-                    "[Network]".bold().green(),
-                    "RequestData".bold().yellow(),
-                    num.to_string().cyan()
+                    "[Network]",
+                    "RequestData",
+                    num.to_string()
                 )
             }
             NetworkHandleMessage::RequestDataResponseFinished => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[Network]".bold().green(),
-                    "RequestDataResponseFinished".bold().yellow()
-                )
+                write!(f, "{} {}", "[Network]", "RequestDataResponseFinished")
             }
             NetworkHandleMessage::HandShake(id, ip, port) => {
                 write!(
                     f,
                     "{} {} id: {}, addr: {}:{}",
-                    "[Network]".bold().green(),
-                    "HandShake".bold().yellow(),
-                    id.to_string().cyan(),
+                    "[Network]",
+                    "HandShake",
+                    id.to_string(),
                     ip,
                     port
                 )
@@ -439,9 +432,9 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} id: {}, addr: {}:{}",
-                    "[Network]".bold().green(),
-                    "Hello".bold().yellow(),
-                    id.to_string().cyan(),
+                    "[Network]",
+                    "Hello",
+                    id.to_string(),
                     ip,
                     port
                 )
@@ -450,8 +443,8 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} id: {}",
-                    "[Network]".bold().green(),
-                    "RemovePeer".bold().yellow(),
+                    "[Network]",
+                    "RemovePeer",
                     id.to_string().red()
                 )
             }
@@ -459,37 +452,27 @@ impl fmt::Display for NetworkHandleMessage {
                 write!(
                     f,
                     "{} {} hash: {:?}",
-                    "[Network]".bold().green(),
-                    "BroadcastTransaction".bold().yellow(),
-                    tx.hash
+                    "[Network]", "BroadcastTransaction", tx.hash
                 )
             }
             NetworkHandleMessage::ReorgChainData => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[Network]".bold().green(),
-                    "ReorgChainData".red().bold()
-                )
+                write!(f, "{} {}", "[Network]", "ReorgChainData")
             }
             NetworkHandleMessage::RequestChainData(ip, port) => {
                 write!(
                     f,
                     "{} {} addr: {}:{}",
-                    "[Network]".bold().green(),
-                    "RequestChainData".bold().yellow(),
-                    ip,
-                    port
+                    "[Network]", "RequestChainData", ip, port
                 )
             }
             NetworkHandleMessage::RespondChainDataResult(num, hashes) => {
                 write!(
                     f,
                     "{} {} start_no: {}, {} hashes",
-                    "[Network]".bold().green(),
-                    "RespondChainDataResult".bold().yellow(),
-                    num.to_string().cyan(),
-                    hashes.len().to_string().magenta()
+                    "[Network]",
+                    "RespondChainDataResult",
+                    num.to_string(),
+                    hashes.len().to_string()
                 )
             }
         }
@@ -509,9 +492,9 @@ impl fmt::Display for ConsensusHandleMessage {
                 write!(
                     f,
                     "{} {} height: {}, hash: {:?}",
-                    "[Consensus]".bold().green(),
-                    "ImportBlock".bold().yellow(),
-                    block.header.height.to_string().cyan(),
+                    "[Consensus]",
+                    "ImportBlock",
+                    block.header.height.to_string(),
                     block.header.calculate_hash()
                 )
             }
@@ -519,12 +502,12 @@ impl fmt::Display for ConsensusHandleMessage {
                 write!(
                     f,
                     "{} {} hash: {:?}, from: {:?}, to: {:?}, value: {}",
-                    "[Consensus]".bold().green(),
-                    "NewTransaction".bold().yellow(),
+                    "[Consensus]",
+                    "NewTransaction",
                     tx.hash(),
-                    tx.signer().get_addr_hex().cyan(),
+                    tx.signer().get_addr_hex(),
                     tx.tx().tx.to().get_addr_hex().bright_blue(),
-                    tx.tx().tx.value().to_string().magenta()
+                    tx.tx().tx.value().to_string()
                 )
             }
         }
@@ -541,20 +524,10 @@ impl fmt::Display for PayloadBuilderHandleMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PayloadBuilderHandleMessage::BuildPayload => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[PayloadBuilderHandle]".bold().green(),
-                    "BuildPayload".bold().yellow()
-                )
+                write!(f, "{} {}", "[PayloadBuilderHandle]", "BuildPayload")
             }
             PayloadBuilderHandleMessage::Stop => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[PayloadBuilderHandle]".bold().green(),
-                    "Stop".red().bold()
-                )
+                write!(f, "{} {}", "[PayloadBuilderHandle]", "Stop")
             }
         }
     }
@@ -570,20 +543,14 @@ impl fmt::Display for PayloadBuilderResultMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PayloadBuilderResultMessage::Payload(payload) => {
-                writeln!(
-                    f,
-                    "{} {}",
-                    "[PayloadBuilderResult]".bold().green(),
-                    "New Payload Built".bold().yellow()
-                )?;
+                writeln!(f, "{} {}", "[PayloadBuilderResult]", "New Payload Built")?;
                 write!(f, "{}", payload) // Payload에 Display 이미 구현되어 있다고 가정
             }
             PayloadBuilderResultMessage::PoolIsEmpty => {
                 write!(
                     f,
                     "{} {}",
-                    "[PayloadBuilderResult]".bold().green(),
-                    "Pool is empty, no payload created".red().bold()
+                    "[PayloadBuilderResult]", "Pool is empty, no payload created"
                 )
             }
         }
@@ -609,21 +576,16 @@ impl fmt::Display for MinerHandleMessage {
                 write!(
                     f,
                     "{} {} height: {}, prev_hash: {:?}, difficulty: {}, timestamp: {}",
-                    "[MinerHandle]".bold().green(),
-                    "NewPayload".bold().yellow(),
-                    header.height.to_string().cyan(),
+                    "[MinerHandle]",
+                    "NewPayload",
+                    header.height.to_string(),
                     header.previous_hash,
-                    header.difficulty.to_string().magenta(),
-                    header.timestamp.to_string().white()
+                    header.difficulty.to_string(),
+                    header.timestamp.to_string()
                 )
             }
             MinerHandleMessage::HaltMining => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[MinerHandle]".bold().green(),
-                    "Halt Mining".bold().yellow()
-                )
+                write!(f, "{} {}", "[MinerHandle]", "Halt Mining")
             }
         }
     }
@@ -636,21 +598,16 @@ impl fmt::Display for MinerResultMessage {
                 write!(
                     f,
                     "{} {} height: {}, hash: {:?}, difficulty: {}, timestamp: {}",
-                    "[MinerResult]".bold().green(),
-                    "MiningSuccess".bold().yellow(),
-                    header.height.to_string().cyan(),
+                    "[MinerResult]",
+                    "MiningSuccess",
+                    header.height.to_string(),
                     header.calculate_hash(),
-                    header.difficulty.to_string().magenta(),
-                    header.timestamp.to_string().white()
+                    header.difficulty.to_string(),
+                    header.timestamp.to_string()
                 )
             }
             MinerResultMessage::MiningHalted => {
-                write!(
-                    f,
-                    "{} {}",
-                    "[MinerResult]".bold().green(),
-                    "MiningHalted".bold().yellow()
-                )
+                write!(f, "{} {}", "[MinerResult]", "MiningHalted")
             }
         }
     }

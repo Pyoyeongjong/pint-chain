@@ -1,6 +1,7 @@
 use node::Node;
 use primitives::transaction::SignedTransaction;
 use provider::DatabaseTrait;
+use tracing::error;
 use transaction_pool::identifier::TransactionOrigin;
 
 // Addr: 28dcb1338b900419cd613a8fb273ae36e7ec2b1d, Seed: pint
@@ -18,7 +19,7 @@ pub fn init_txs<DB: DatabaseTrait>(node: &Node<DB>) {
         TransactionOrigin::External,
         signed.into_recovered().unwrap(),
     ) {
-        eprintln!("Tx1 add failed");
+        error!("Tx1 add failed");
     }
     // From: pint, To: banana, Fee: 10, Value: 1000, Nonce: 1
     let tx = "00000000000000000000000000000001b2aaaf07a29937c3b833dca1c9659d98a95690700000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000003e8c1f3d993c37465ba08cf75eecddb01b214f84d77be915543c47374ae22d4cc6b78354616140743272fd536194a866ad0bd3c6d2d3f4531ee52d3c6bad99b5d1a01";
@@ -29,7 +30,7 @@ pub fn init_txs<DB: DatabaseTrait>(node: &Node<DB>) {
         TransactionOrigin::External,
         signed.into_recovered().unwrap(),
     ) {
-        eprintln!("Tx2 add failed");
+        error!("Tx2 add failed");
     }
     // From: chain, To: banana, Fee: 5, Value: 1000, Nonce: 0
     let tx = "00000000000000000000000000000000b2aaaf07a29937c3b833dca1c9659d98a95690700000000000000000000000000000000500000000000000000000000000000000000000000000000000000000000003e806cc9be9a58dbba4fa5459512c6d5c3d100bbfcb71cfffb669037243babb0c8678077cba676a8eb659f35a148b551dfadaef085cccbac97729c5a743cab9eec901";
@@ -40,7 +41,7 @@ pub fn init_txs<DB: DatabaseTrait>(node: &Node<DB>) {
         TransactionOrigin::External,
         signed.into_recovered().unwrap(),
     ) {
-        eprintln!("Tx3 add failed");
+        error!("Tx3 add failed");
     }
 
     node.pool.print_pool();

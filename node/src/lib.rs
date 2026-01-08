@@ -1,12 +1,15 @@
-use std::sync::Arc;
-
-use axum::{routing::post, Router};
-use network::{builder::NetworkConfig};
-use primitives::{handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage}, transaction::SignedTransaction};
-use provider::{DatabaseTrait, ProviderFactory};
-use tokio::net::TcpListener;
-use transaction_pool::{identifier::TransactionOrigin, Pool};
 use crate::rpc::rpc_handle;
+use axum::{Router, routing::post};
+use network::builder::NetworkConfig;
+use primitives::{
+    handle::{ConsensusHandleMessage, Handle, NetworkHandleMessage},
+    transaction::SignedTransaction,
+};
+use provider::{DatabaseTrait, ProviderFactory};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tracing::{error, info};
+use transaction_pool::{Pool, identifier::TransactionOrigin};
 
 pub mod builder;
 pub mod configs;
@@ -22,21 +25,21 @@ pub struct Node<DB: DatabaseTrait> {
 }
 
 impl<DB: DatabaseTrait> Node<DB> {
-
     pub fn handle_tx(&self, tx: SignedTransaction) {
         let tx_hash = tx.hash;
         let recovered = match tx.into_recovered() {
-            Ok(recovered) => {
-                recovered
-            }
-            Err(_e) => {
-                eprintln!("Failed to handle tx: {:?}", tx_hash);
+            Ok(recovered) => recovered,
+            Err(e) => {
+                error!(error = ?e, "Failed to handle tx: {:?}", tx_hash);
                 return;
             }
         };
 
-        if let Err(_e) = self.pool.add_transaction(TransactionOrigin::External, recovered) {
-            eprintln!("Failed to handle tx: {:?}", tx_hash);
+        if let Err(e) = self
+            .pool
+            .add_transaction(TransactionOrigin::External, recovered)
+        {
+            error!(error = ?e, "Failed to handle tx: {:?}", tx_hash);
         }
     }
 
@@ -48,14 +51,17 @@ impl<DB: DatabaseTrait> Node<DB> {
         self.network.send(msg);
     }
 
-    pub async fn run_rpc(self, network_config: NetworkConfig) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn run_rpc(
+        self,
+        network_config: NetworkConfig,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        info!("PintChain Node Rpc Server starts.");
 
-        println!("[ RPC ] PintChain Node Rpc Server starts.");
-
-        let listener = match TcpListener::bind((network_config.address, network_config.rpc_port)).await {
-            Ok(listener) => listener,
-            Err(e) => return Err(Box::new(e)),
-        };
+        let listener =
+            match TcpListener::bind((network_config.address, network_config.rpc_port)).await {
+                Ok(listener) => listener,
+                Err(e) => return Err(Box::new(e)),
+            };
 
         let node = Arc::new(self);
 
@@ -64,7 +70,7 @@ impl<DB: DatabaseTrait> Node<DB> {
             .with_state(node);
 
         let _ = match axum::serve(listener, app).await {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => return Err(Box::new(e)),
         };
 

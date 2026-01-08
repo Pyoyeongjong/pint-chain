@@ -11,6 +11,7 @@ use primitives::{
     types::{Account, Address, BlockHash, TxHash},
     world::World,
 };
+use tracing::{info, warn};
 
 use crate::{error::DatabaseError, genesis::genesis_accounts_info, traits::DatabaseTrait};
 
@@ -135,9 +136,9 @@ impl MDBX {
             }
             tx.commit().unwrap();
 
-            println!("MDBX: Genesis block initialized.");
+            info!("MDBX: Genesis block initialized.");
         } else {
-            println!("MDBX: DB already initialized, skipping genesis.");
+            info!("MDBX: DB already initialized, skipping genesis.");
         }
 
         mdbx
@@ -327,7 +328,7 @@ impl DatabaseTrait for MDBX {
             .upsert(new_latest, new_block)
             .map_err(|_| DatabaseError::DBError)?;
         tx.commit().unwrap();
-        println!("[ DB ] DB updated new block. Height: {}", new_latest);
+        warn!(height = new_latest, "DB updated new block.");
         Ok(())
     }
 

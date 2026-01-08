@@ -4,6 +4,7 @@ use network::builder::NetworkConfig;
 use node::{builder::LaunchContext, configs::BlockConfig};
 use primitives::types::Address;
 use tokio::signal;
+use tracing::{error, info};
 
 pub struct NodeConfig {
     pub name: String,
@@ -38,20 +39,20 @@ pub async fn launch_test_node(config: NodeConfig) -> anyhow::Result<()> {
     let node = match launch_context.launch().await {
         Ok(node) => node,
         Err(err) => {
-            eprintln!("Failed to launch PintChain Node. {:?}", err);
+            error!(error = ?err, "Failed to launch PintChain Node.");
             return Err(err.into());
         }
     };
 
-    println!("[ Name: {} ] PintChain Node launcing Ok.", name);
+    info!("[ Name: {} ] PintChain Node launcing Ok.", name);
 
     tokio::task::spawn(async move {
         tokio::select! {
             _ = node.run_rpc(network_config) => {
-                println!("Rpc Server has been shutdown");
+                info!("Rpc Server has been shutdown");
             },
             _ = signal::ctrl_c() => {
-                println!("Ctrl_C: Gracefully shutdown Node..")
+                info!("Ctrl_C: Gracefully shutdown Node..");
             }
         }
     });

@@ -11,4 +11,6 @@ transaction_pool.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 

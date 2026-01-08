@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use primitives::handle::{ConsensusHandleMessage, Handle};
 use tokio::sync::mpsc::UnboundedSender;
-
+use tracing::error;
 
 #[derive(Debug, Clone)]
 pub struct ConsensusHandle {
@@ -12,7 +12,7 @@ pub struct ConsensusHandle {
 impl ConsensusHandle {
     pub fn new(tx: UnboundedSender<ConsensusHandleMessage>) -> Self {
         Self {
-            inner: Arc::new(ConsensusInner { to_manager_tx: tx })
+            inner: Arc::new(ConsensusInner { to_manager_tx: tx }),
         }
     }
 }
@@ -22,7 +22,10 @@ impl Handle for ConsensusHandle {
 
     fn send(&self, msg: Self::Msg) {
         if let Err(e) = self.inner.to_manager_tx.send(msg) {
-            eprintln!("Failed to send ConsensusHandleMessage: {:?}", e);
+            error!(
+                error = ?e,
+                "Failed to send ConsensusHandleMessage."
+            );
         }
     }
 }

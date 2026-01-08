@@ -9,6 +9,7 @@ use primitives::{
 use provider::DatabaseTrait;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tracing::error;
 use transaction_pool::{error::PoolErrorKind, identifier::TransactionOrigin};
 
 use crate::Node;
@@ -168,7 +169,7 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
                 let address = match Address::from_hex(raw.to_string()) {
                     Ok(addr) => addr,
                     Err(e) => {
-                        eprintln!("Failed to get account info: {:?}", e);
+                        error!(error = ?e, "Failed to get account info.");
                         result = json!("Wrong address");
                         return Json(RpcResponse {
                             jsonrpc: "2.0".to_string(),
@@ -215,7 +216,6 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
         "transaction" => {
             let mut result: Value = json!("There is no transaction you want to find.");
             if let Some(raw) = req.params[0].as_str() {
-                dbg!(&raw);
                 let data = match hex::decode(raw) {
                     Ok(data) => data,
                     Err(_e) => {
@@ -294,6 +294,7 @@ pub async fn rpc_handle<DB: DatabaseTrait>(
 
             if let Some(raw) = req.params[0].as_str() {
                 dbg!(raw);
+                // TODO: Fill below
                 // let addr = SocketAddr::from(raw);
                 // match node.handle_network(NetworkHandleMessage::PeerConnectionTest { peer: () });
             }

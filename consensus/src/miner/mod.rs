@@ -11,6 +11,7 @@ use primitives::{
 };
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tracing::{error, info};
 
 use crate::miner::handle::MinerHandle;
 
@@ -37,7 +38,7 @@ impl Miner {
 
     pub fn start_channel(self) {
         tokio::spawn(async move {
-            println!("[ Miner ] Miner channel starts.");
+            info!("Miner channel starts.");
             let Miner {
                 mut miner_rx,
                 consensus_tx,
@@ -47,7 +48,7 @@ impl Miner {
             let mut token: Option<tokio_util::sync::CancellationToken> = None;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
-                    println!("[ Miner ] Miner received message: {}", msg);
+                    info!("Miner received message. {}", msg);
                     match msg {
                         MinerHandleMessage::NewPayload(payload_header) => {
                             // spawn payload mining task
@@ -79,7 +80,7 @@ impl Miner {
                                         if let Err(e) =
                                             consensus_tx.send(MinerResultMessage::MiningHalted)
                                         {
-                                            eprintln!("Failed to send MingResultMessage: {:?}", e)
+                                            error!(error = ?e, "Failed to send MingResultMessage.");
                                         }
                                         return;
                                     }
@@ -93,7 +94,7 @@ impl Miner {
                                         if let Err(e) = consensus_tx
                                             .send(MinerResultMessage::MiningSuccess(header))
                                         {
-                                            eprintln!("Failed to send MinerResultMessage: {:?}", e);
+                                            error!(error = ?e, "Failed to send MingResultMessage.");
                                         }
                                         return;
                                     }
@@ -105,7 +106,7 @@ impl Miner {
                             if worker.load(Ordering::Relaxed) == 0 {
                                 if let Err(e) = consensus_tx.send(MinerResultMessage::MiningHalted)
                                 {
-                                    eprintln!("Failed to send MingResultMessage: {:?}", e)
+                                    error!(error = ?e, "Failed to send MingResultMessage.");
                                 }
                             } else {
                                 // MinerResultMessage will be sent by mining task!

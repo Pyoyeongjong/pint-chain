@@ -39,8 +39,6 @@ pub async fn get_tx_from_rpc(tx_hash: String, url: &str) -> anyhow::Result<Trans
     let body = res.text().await?;
     let resp: serde_json::Value = serde_json::from_str(&body)?;
 
-    println!("{:?}", &resp);
-
     let tx_hex = resp["result"]["tx"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing result.tx"))?;

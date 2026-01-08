@@ -2,15 +2,21 @@ use std::sync::Arc;
 
 use primitives::{block::Block, transaction::Recovered, types::TxHash};
 use provider::{DatabaseTrait, ProviderFactory};
+use tracing::info;
 
-use crate::{error::{PoolError, PoolErrorKind, PoolResult}, identifier::TransactionOrigin, pool::{best::BestTransactions, PoolInner}, validator::TransactionValidationOutcome};
+use crate::{
+    error::{PoolError, PoolErrorKind, PoolResult},
+    identifier::TransactionOrigin,
+    pool::{PoolInner, best::BestTransactions},
+    validator::TransactionValidationOutcome,
+};
 
+pub mod error;
+pub mod identifier;
+pub mod mock;
+pub mod ordering;
 pub mod pool;
 pub mod validator;
-pub mod identifier;
-pub mod ordering;
-pub mod mock;
-pub mod error;
 
 #[derive(Debug, Clone)]
 pub struct Pool<DB: DatabaseTrait> {
@@ -32,14 +38,23 @@ impl<DB: DatabaseTrait> Pool<DB> {
         }
     }
 
-
-    pub fn add_transaction(&self, origin: TransactionOrigin, transaction: Recovered) -> PoolResult<TxHash>{
+    pub fn add_transaction(
+        &self,
+        origin: TransactionOrigin,
+        transaction: Recovered,
+    ) -> PoolResult<TxHash> {
         let (_hash, outcome) = self.validate(origin, transaction);
         match outcome {
-            TransactionValidationOutcome::Valid { transaction, balance, nonce } => {
-                self.pool.pool().write().add_transaction(transaction, balance, nonce)
-            }
-            TransactionValidationOutcome::Invalid{ transaction, error} => {
+            TransactionValidationOutcome::Valid {
+                transaction,
+                balance,
+                nonce,
+            } => self
+                .pool
+                .pool()
+                .write()
+                .add_transaction(transaction, balance, nonce),
+            TransactionValidationOutcome::Invalid { transaction, error } => {
                 let pool_error = PoolError {
                     hash: transaction.hash(),
                     kind: PoolErrorKind::InvalidPoolTransactionError(error),
@@ -56,9 +71,16 @@ impl<DB: DatabaseTrait> Pool<DB> {
         }
     }
 
-    pub fn validate(&self, origin: TransactionOrigin, transaction: Recovered) -> (TxHash, TransactionValidationOutcome) {
+    pub fn validate(
+        &self,
+        origin: TransactionOrigin,
+        transaction: Recovered,
+    ) -> (TxHash, TransactionValidationOutcome) {
         let hash = transaction.hash();
-        let outcome = self.pool.validator().validate_transaction(origin, transaction);
+        let outcome = self
+            .pool
+            .validator()
+            .validate_transaction(origin, transaction);
 
         (hash, outcome)
     }
@@ -75,7 +97,8 @@ impl<DB: DatabaseTrait> Pool<DB> {
     // for debug!
     pub fn print_pool(&self) {
         let pool = self.pool.pool().read();
-        println!("[ Pool ] All: {}, Pending: {}, Parked: {}",
+        info!(
+            "Pool txs info: All: {}, Pending: {}, Parked: {}",
             pool.all_transaction.len(),
             pool.pending_pool.len(),
             pool.parked_pool.len()
@@ -87,5 +110,3 @@ impl<DB: DatabaseTrait> Pool<DB> {
         pool.pending_pool.len()
     }
 }
-
-

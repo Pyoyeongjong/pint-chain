@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use primitives::{
     block::{Payload, PayloadHeader},
     handle::{PayloadBuilderHandleMessage, PayloadBuilderResultMessage},
@@ -7,7 +5,9 @@ use primitives::{
     types::{Address, U256},
 };
 use provider::{DatabaseTrait, ProviderFactory, executor::Executor};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tracing::{error, info};
 use transaction_pool::Pool;
 
 use crate::{builder::BuildArguments, error::PayloadBuilderError, handle::PayloadBuilderHandle};
@@ -56,7 +56,7 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
         orchestration_tx: UnboundedSender<PayloadBuilderResultMessage>,
     ) {
         tokio::spawn(async move {
-            println!("[ Payload Builder ] channel starts.");
+            info!("Channel starts.");
             let PayloadBuilder {
                 address,
                 provider,
@@ -65,7 +65,7 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
 
             loop {
                 if let Some(msg) = to_manager_rx.recv().await {
-                    println!("[ Payload Builder ] received message: {}", msg);
+                    info!("Received message: {}", msg);
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
                             pool.print_pool();
@@ -73,10 +73,7 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
                                 if let Err(e) =
                                     orchestration_tx.send(PayloadBuilderResultMessage::PoolIsEmpty)
                                 {
-                                    eprintln!(
-                                        "[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}",
-                                        e
-                                    );
+                                    error!(error = ?e, "Failed to send PayloadBuilderResultMessage.");
                                 };
                                 continue;
                             }
@@ -99,17 +96,11 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
                                         if let Err(e) = orchestration_tx
                                             .send(PayloadBuilderResultMessage::Payload(payload))
                                         {
-                                            eprintln!(
-                                                "[ Payload Builder ] Failed to send PayloadBuilderResultMessage: {:?}",
-                                                e
-                                            );
+                                            error!(error = ?e, "Failed to send PayloadBuilderResultMessage.");
                                         };
                                     }
                                     Err(e) => {
-                                        eprintln!(
-                                            "[ Payload Builder ] Failed to make new payload {:?}",
-                                            e
-                                        );
+                                        error!(error = ?e, "Failed to make new payload.");
                                     }
                                 }
                             });

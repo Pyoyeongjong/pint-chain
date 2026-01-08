@@ -153,7 +153,7 @@ impl TxPool {
         };
 
         if let Some(ref _tx) = tx {
-            // println!("Removed transaction from a subpool: {:?}, ",tx);
+            // info!("Removed transaction from a subpool: {:?}, ",tx);
         }
         tx
     }

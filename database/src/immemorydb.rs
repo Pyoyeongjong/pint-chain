@@ -10,6 +10,7 @@ use primitives::{
     types::{Account, Address},
     world::World,
 };
+use tracing::warn;
 
 use crate::{error::DatabaseError, genesis::genesis_accounts_info, traits::DatabaseTrait};
 
@@ -159,7 +160,7 @@ impl DatabaseTrait for Arc<InMemoryDB> {
 
         let mut blockchain = self.blockchain.write();
         blockchain.insert(*latest, block);
-        println!("[ DB ] DB updated new block. Height: {}", latest);
+        warn!(block_height = ?latest, "DB updated new block.");
 
         Ok(())
     }

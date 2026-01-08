@@ -9,6 +9,7 @@ use primitives::{
 };
 use provider::{DatabaseTrait, ProviderFactory};
 use tokio::sync::mpsc::UnboundedReceiver;
+use tracing::{error, info};
 use transaction_pool::Pool;
 
 use crate::{handle::ConsensusHandle, importer::BlockImporter, miner::handle::MinerHandle};
@@ -62,7 +63,7 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
         let consensus_handle_cloned = consensus_handle.clone();
 
         tokio::spawn(async move {
-            println!("[ Consensus ] Consensus channel starts.");
+            info!("Consensus channel starts.");
             let consensus_handle = consensus_handle_cloned;
             let Self {
                 importer,
@@ -84,10 +85,14 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
             loop {
                 tokio::select! {
                     Some(msg) = miner_events.recv() => {
-                        println!("[ Consensus ] received message from Miner: {}", msg);
+                        info!(
+                            "Received message from Miner: {}", msg
+                        );
                         match msg {
                             MinerResultMessage::MiningSuccess(header) => {
-                                println!("[ Consensus ] Accepted mining result!");
+                                info!{
+                                    "Accepted mining result. Header: {:?}", header
+                                };
 
                                 // check this result matches current payload
                                 let new_latest_payload = latest_payload.clone();
@@ -98,7 +103,9 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
 
                                 let payload: Payload = new_latest_payload.unwrap();
                                 if header.timestamp != payload.header.timestamp {
-                                    eprintln!("[ Consensus ] Latest_payload and mining results is different.");
+                                    error!(
+                                        "Latest_payload and mining results is different."
+                                    );
                                     continue;
                                 }
 
@@ -110,24 +117,27 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 consensus_handle.send(ConsensusHandleMessage::ImportBlock(block));
                             }
                             MinerResultMessage::MiningHalted => {
-                                println!("[ Consensus ] Mining task halted");
-                                // 현재 진행하던 채굴이 종료되었을 경우.(성공적 채굴을 했거나, 강제 종료 당했을 때.)
+                                info!(
+                                    "Mining task halted"
+                                );
                                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
                         }
                     }
 
                     Some(msg) = builder_events.recv() => {
-                        println!("[ Consensus ] received message from PayloadBuilder: {}", msg);
+                        info!(
+                            "Recived message from PayloadBuilder: {}", msg
+                        );
                         match msg {
                             PayloadBuilderResultMessage::Payload(payload) => {
-                                println!("[ Consensus ] Accepted payload");
+                                info!(
+                                    "Accepted payload"
+                                );
                                 if payload.body.len() == 0 {
-                                    println!("[ Consensus ] Payload with no body. Wait for new Transaction..");
-                                    // let builder_handle_cloned = builder_handle.clone();
-                                    // tokio::spawn(async move {
-                                    //     next_payload_build_task(builder_handle_cloned).await;
-                                    // });
+                                    info!(
+                                        "Payload with no body. Wait for new Transaction.."
+                                    );
                                 } else {
                                     let miner_handle_cloned = miner_handle.clone();
                                     miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
@@ -136,38 +146,52 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
 
                             }
                             PayloadBuilderResultMessage::PoolIsEmpty => {
-                                println!("[ Consensus ] There are no txs in pending pool. Wait for new Transaction..");
-                                // let builder_handle_cloned = builder_handle.clone();
-                                // tokio::spawn(async move {
-                                //     next_payload_build_task(builder_handle_cloned).await;
-                                // });
+                                info!(
+                                    "There are no txs in pending pool. Wait for new Transaction.."
+                                );
                             }
                         }
                     }
 
                     Some(msg) = rx.recv() => {
-                        println!("[ Consensus ] received message: {}", msg);
+                        info!(
+                            "Received message: {}", msg
+                        );
                         match msg {
                             ConsensusHandleMessage::ImportBlock(block) => {
                                 // if this is a not succeeding block, ask for network to get new blockchain data
                                 if let Err(e) = importer.import_new_block(block.clone()) {
                                     match e {
                                         BlockImportError::BlockHeightError => {
-                                            eprintln!("[ Consensus ] Failed to import new block due to block height: {:?}. Try to update new datas.", e);
+                                            error!(
+                                                error = ?e,
+                                                "Failed to import new block due to block height. Try to update new datas."
+                                            );
+                                            // TODO: 이거 왜있지?
                                             // network.send(NetworkHandleMessage::RequestData);
                                             continue;
                                         }
                                         BlockImportError::NotChainedBlock => {
-                                            eprintln!("[ Consensus ] Failed to import new block due to block_hash: {:?}. Try to update new datas.", e);
+                                            error!(
+                                                error = ?e,
+                                                "Failed to import new block due to block hash. Try to update new datas."
+                                            );
+                                            // TODO: 이거 왜있지?
                                             // network.send(NetworkHandleMessage::RequestData);
                                             continue;
                                         }
                                         BlockImportError::AlreadyImportedBlock => {
-                                            println!("[ Consensus ] Already imported block! {:?}", block.header.height);
+                                            info!(
+                                                height = &block.header.height,
+                                                "Already imported block!"
+                                            );
                                             continue;
                                         }
                                         _ => {
-                                            eprintln!("[ Consensus ] Failed to import new block: {:?}", e);
+                                            error!(
+                                                error = ?e,
+                                                "Failed to import new block."
+                                            );
                                         }
                                     }
                                 }

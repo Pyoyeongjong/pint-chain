@@ -8,6 +8,7 @@ use tokio::{
     select,
     sync::mpsc::{self, UnboundedSender},
 };
+use tracing::{error, info, warn};
 
 use crate::{NetworkHandle, NetworkHandleMessage};
 
@@ -24,9 +25,12 @@ impl Peer {
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
-        println!("[ Network ] send {:?} with {}", self.addr, msg);
+        info!("send {:?} with {}", self.addr, msg);
         if let Err(e) = self.tx.send(msg) {
-            eprintln!("Failed to send NetworkHandleMessage: {:?}", e);
+            error!(
+                error = ?e,
+                "Failed to send NetworkHandleMessage."
+            );
         }
     }
 
@@ -106,17 +110,17 @@ impl PeerList {
 
         // incoming loop
         let incoming = async move {
-            println!("Peer {:?} incoming task has spawned.", addr);
+            info!("Peer {:?} incoming task has spawned.", addr);
             let mut buf = [0u8; 1024];
             loop {
                 match read_socket.read(&mut buf).await {
                     Ok(0) => {
-                        println!("Peer {:?} closed connection", addr);
+                        info!("Peer {:?} closed connection", addr);
                         network_handle.send(NetworkHandleMessage::RemovePeer(pid));
                         break;
                     }
                     Ok(n) => {
-                        println!("encoded {} data incomed", n);
+                        info!("encoded {} data incomed", n);
                         let mut off: usize = 0;
 
                         while off < n {
@@ -127,15 +131,15 @@ impl PeerList {
                                         off += used;
                                     }
                                     None => {
-                                        eprintln!("Invalid Request from Peer: {:?}", addr);
+                                        warn!( addr = ?addr, "Invalid Request from Peer");
                                         off += used;
                                     }
                                 },
 
                                 Err(e) => {
-                                    eprintln!(
-                                        "Failed to decode Network handle message: {:?} from {:?}",
-                                        e, addr
+                                    error!(
+                                        error = ?e,
+                                        "Failed to decode Network handle message from {:?}", addr
                                     );
                                     continue;
                                 }
@@ -143,7 +147,10 @@ impl PeerList {
                         }
                     }
                     Err(e) => {
-                        eprintln!("read error from {:?}: {:?}", addr, e);
+                        error!(
+                            error = ?e,
+                            "read error from {:?}", addr
+                        );
                         break;
                     }
                 }
@@ -152,10 +159,13 @@ impl PeerList {
 
         // outgoing loop
         let outgoing = async move {
-            println!("Peer {:?} outgoing task has spawned.", addr);
+            info!("Peer {:?} outgoing task has spawned.", addr);
             while let Some(msg) = rx.recv().await {
                 if let Err(e) = write_socket.write_all(&msg.encode()).await {
-                    eprintln!("Failed to send to {:?}: {:?}", addr, e);
+                    error!(
+                        error = ?e,
+                        "Failed to send to {:?}", addr
+                    );
                     break;
                 }
             }
@@ -169,7 +179,7 @@ impl PeerList {
                 _ = outgoing => {}
             }
 
-            println!("Peer {:?} disconnected.", addr);
+            info!("Peer {:?} disconnected.", addr);
             let mut peers = peers_ref.write();
             peers.retain(|peer| peer.addr != addr);
         });

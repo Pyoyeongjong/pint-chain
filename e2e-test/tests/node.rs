@@ -14,9 +14,18 @@ use primitives::{
     transaction::Transaction,
     types::{Address, U256},
 };
+use tracing_subscriber::EnvFilter;
 
 #[tokio::test]
 async fn e2e_single_node_basic() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_target(true)
+        .with_level(true)
+        .init();
+
     let boot_node_url = "http://127.0.0.1:8888";
     let miner_address = String::from("28dcb1338b900419cd613a8fb273ae36e7ec2b1c");
     let boot_node = NodeConfig {
@@ -97,6 +106,13 @@ async fn e2e_single_node_basic() {
 
 #[tokio::test]
 async fn e2e_multi_node_basic() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_target(true)
+        .with_level(true)
+        .init();
     let boot_node_url = "http://127.0.0.1:8888";
     let boot_node = NodeConfig {
         name: String::from("Boot_node"),

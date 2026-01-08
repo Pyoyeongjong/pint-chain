@@ -6,6 +6,8 @@ use network::builder::NetworkConfig;
 use node::{builder::LaunchContext, configs::BlockConfig};
 use primitives::types::Address;
 use tokio::signal;
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 use crate::init::init_txs;
 mod init;
@@ -49,15 +51,24 @@ async fn main() {
         unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
     }
 
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_target(true)
+        .with_level(true)
+        .init();
+
     let args = Args::parse();
-    println!("({}) Try to launch PintChain Node.", args.name);
+    info!(node_name = &args.name, "Try to launch PintChain Node.");
+    // info!("({}) Try to launch PintChain Node.", args.name);
 
     if args.remove_data {
         let pathbuf = get_db_path();
         if pathbuf.exists() {
             std::fs::remove_dir_all(&pathbuf).expect("Failed to remove DB directory");
         }
-        println!("Removing DB data Ok");
+        info!("Removing DB data Ok");
     }
 
     let miner_address =
@@ -72,12 +83,12 @@ async fn main() {
     let node = match launch_context.launch().await {
         Ok(node) => node,
         Err(err) => {
-            eprintln!("Failed to launch PintChain Node. {:?}", err);
+            error!(error = ?err, "Failed to launch PintChain Node.");
             return;
         }
     };
 
-    println!("[ Name: {} ] PintChain Node launcing Ok.", args.name);
+    info!("[ Name: {} ] PintChain Node launcing Ok.", args.name);
 
     if args.boot_node && args.test {
         init_txs(&node);
@@ -87,10 +98,10 @@ async fn main() {
     // Graceful shutdown
     tokio::select! {
         _ = node.run_rpc(network_config) => {
-            println!("Rpc Server has been shutdown");
+            info!("Rpc Server has been shutdown");
         },
         _ = signal::ctrl_c() => {
-            println!("Ctrl_C: Gracefully shutdown Node..")
+            info!("Ctrl_C: Gracefully shutdown Node..")
         }
     }
 }

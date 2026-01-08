@@ -1,16 +1,24 @@
 use std::sync::Arc;
 
-use consensus::{handle::ConsensusHandle, miner::Miner, ConsensusEngine};
-use database::{immemorydb::InMemoryDB, mdbx::MDBX, DBImpl};
-use network::{builder::{NetworkBuilder, NetworkConfig}, handle::NetworkHandle};
+use consensus::{ConsensusEngine, handle::ConsensusHandle, miner::Miner};
+use database::{DBImpl, immemorydb::InMemoryDB, mdbx::MDBX};
+use network::{
+    builder::{NetworkBuilder, NetworkConfig},
+    handle::NetworkHandle,
+};
 use payload::PayloadBuilder;
 use primitives::handle::{ConsensusHandleMessage, NetworkHandleMessage};
 use provider::ProviderFactory;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::info;
 use transaction_pool::Pool;
 
-use crate::{configs::{BlockConfig, ExecConfig, PoolConfig, RpcConfig}, error::NodeLaunchError, Node};
+use crate::{
+    Node,
+    configs::{BlockConfig, ExecConfig, PoolConfig, RpcConfig},
+    error::NodeLaunchError,
+};
 
 pub struct LaunchContext {
     pub block_config: BlockConfig,
@@ -22,7 +30,11 @@ pub struct LaunchContext {
 }
 
 impl LaunchContext {
-    pub fn new(network_config: NetworkConfig, block_config: BlockConfig, in_memory_db: bool) -> Self {
+    pub fn new(
+        network_config: NetworkConfig,
+        block_config: BlockConfig,
+        in_memory_db: bool,
+    ) -> Self {
         Self {
             block_config,
             pool_config: PoolConfig::default(),
@@ -36,21 +48,27 @@ impl LaunchContext {
 
 impl LaunchContext {
     pub async fn launch(self) -> Result<Node<DBImpl>, NodeLaunchError> {
-        let Self {network_config, block_config, in_memory_db,..} = self;
+        let Self {
+            network_config,
+            block_config,
+            in_memory_db,
+            ..
+        } = self;
         // Build Provider
 
         let db = if !in_memory_db {
-            println!("[ DB ] DB Launched with MDBX.");
+            info!("DB Launched with MDBX.");
             DBImpl::MDBX(MDBX::genesis_state())
         } else {
-            println!("[ DB ] DB Launched with InMemoryDB.");
+            info!("DB Launched with InMemoryDB.");
             DBImpl::InMemoryDB(Arc::new(InMemoryDB::genesis_state()))
         };
         let provider = ProviderFactory::new(db);
         // Build Pool
         let pool = Pool::new(provider.clone());
         // Build PayloadBuilder
-        let builder = PayloadBuilder::new(block_config.miner_address, provider.clone(), pool.clone());
+        let builder =
+            PayloadBuilder::new(block_config.miner_address, provider.clone(), pool.clone());
         let (builder_handle, builder_rx) = builder.start_builder();
         // Build Network
         let (tx, rx) = mpsc::unbounded_channel::<NetworkHandleMessage>();
@@ -62,18 +80,26 @@ impl LaunchContext {
         // Build Consensus
         let (tx, consensus_rx) = mpsc::unbounded_channel::<ConsensusHandleMessage>();
         let consensus_handle = ConsensusHandle::new(tx);
-        
+
         let consensus = ConsensusEngine::new(
-            pool.clone(), 
+            pool.clone(),
             builder_handle,
-            Box::new(network_handle.clone()), 
-            provider.clone(), 
-            miner_handle, 
+            Box::new(network_handle.clone()),
+            provider.clone(),
+            miner_handle,
             miner_rx,
             builder_rx,
         );
 
-        let network_handle = NetworkBuilder::start_network(network_handle, rx_stream, Box::new(consensus_handle.clone()), pool.clone(), provider.clone(), network_config).await?;
+        let network_handle = NetworkBuilder::start_network(
+            network_handle,
+            rx_stream,
+            Box::new(consensus_handle.clone()),
+            pool.clone(),
+            provider.clone(),
+            network_config,
+        )
+        .await?;
 
         let consensus_handle = consensus.start_consensus(consensus_handle, consensus_rx);
 

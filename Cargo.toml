@@ -28,3 +28,5 @@ sha2 = "0.10.9"
 hex = "0.4.3"
 thiserror = "2.0.17"
 tokio-util = "0.7.17"
+tracing = { version = "0.1"}
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

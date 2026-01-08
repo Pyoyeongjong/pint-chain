@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use primitives::handle::{Handle, PayloadBuilderHandleMessage};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::error;
 
 #[derive(Debug, Clone)]
 pub struct PayloadBuilderHandle {
@@ -11,9 +12,7 @@ pub struct PayloadBuilderHandle {
 impl PayloadBuilderHandle {
     pub fn new(to_manager_tx: UnboundedSender<PayloadBuilderHandleMessage>) -> Self {
         Self {
-            inner: Arc::new(PayloadBuilderInner {
-                to_manager_tx,
-            })
+            inner: Arc::new(PayloadBuilderInner { to_manager_tx }),
         }
     }
 }
@@ -23,7 +22,7 @@ impl Handle for PayloadBuilderHandle {
 
     fn send(&self, msg: Self::Msg) {
         if let Err(e) = self.inner.to_manager_tx.send(msg) {
-            eprintln!("Failed to send PayloadBuilderHandleMessage: {:?}", e);
+            error!(error = ?e, "Failed to send PayloadBuilderHandleMessage.");
         }
     }
 }
