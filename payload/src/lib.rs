@@ -7,7 +7,7 @@ use primitives::{
 use provider::{DatabaseTrait, ProviderFactory, executor::Executor};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use transaction_pool::Pool;
 
 use crate::{builder::BuildArguments, error::PayloadBuilderError, handle::PayloadBuilderHandle};
@@ -65,7 +65,7 @@ impl<DB: DatabaseTrait> PayloadBuilder<DB> {
 
             loop {
                 if let Some(msg) = to_manager_rx.recv().await {
-                    info!("Received message: {}", msg);
+                    debug!("Received message: {}", msg);
                     match msg {
                         PayloadBuilderHandleMessage::BuildPayload => {
                             pool.print_pool();

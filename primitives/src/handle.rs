@@ -22,7 +22,7 @@ pub trait Handle: Send + Sync + std::fmt::Debug {
 
 #[derive(Debug)]
 pub enum NetworkHandleMessage {
-    PeerConnectionTest { peer: SocketAddr },
+    PeerConnectionTest,
     NewTransaction(SignedTransaction),
     NewPayload(Block),
     BroadcastBlock(Block),
@@ -36,13 +36,16 @@ pub enum NetworkHandleMessage {
     ReorgChainData,
     RequestChainData(IpAddr, u16),
     RespondChainDataResult(u64, Vec<BlockHash>),
+    Ping(IpAddr, u16),
+    Pong(IpAddr, u16),
+    RemoveUnresponsivePeer(u64),
 }
 
 impl NetworkHandleMessage {
     pub fn encode(&self) -> Vec<u8> {
         match self {
-            Self::PeerConnectionTest { peer: _ } => {
-                let msg_type = 0x00 as u8;
+            Self::PeerConnectionTest => {
+                let msg_type = 0x01 as u8;
                 let protocol_version = 0x00 as u8;
                 let payload_length = 0x00 as u64;
 
@@ -51,7 +54,7 @@ impl NetworkHandleMessage {
                 raw
             }
             Self::NewTransaction(signed) => {
-                let msg_type = 0x01 as u8;
+                let msg_type = 0x02 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut data = signed.encode();
                 let payload_length = data.len() as u64;
@@ -62,7 +65,7 @@ impl NetworkHandleMessage {
                 raw
             }
             Self::NewPayload(block) => {
-                let msg_type = 0x02 as u8;
+                let msg_type = 0x03 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut data = block.encode_ref();
                 let payload_length = data.len() as u64;
@@ -94,7 +97,7 @@ impl NetworkHandleMessage {
                 raw.append(&mut ip_addr);
                 raw.append(&mut port);
                 // ??? why should it be here ???
-                dbg!(raw.len());
+                //dbg!(raw.len());
                 raw
             }
             Self::RequestData(from) => {
@@ -167,7 +170,7 @@ impl NetworkHandleMessage {
                 raw
             }
             Self::RequestChainData(ip_addr, port) => {
-                let msg_type = 0x12 as u8;
+                let msg_type = 0x09 as u8;
                 let protocol_version = 0x00 as u8;
                 let mut ip_addr = match ip_addr {
                     IpAddr::V4(v4) => v4.octets().to_vec(),
@@ -183,7 +186,7 @@ impl NetworkHandleMessage {
                 raw
             }
             Self::RespondChainDataResult(len, vec) => {
-                let msg_type = 0x13 as u8;
+                let msg_type = 0x10 as u8;
                 let protocol_version = 0x00 as u8;
                 let payload_length = (32 * (*len) as u64) + 8;
 
@@ -197,6 +200,43 @@ impl NetworkHandleMessage {
 
                 raw
             }
+            Self::Ping(ip_addr, port) => {
+                let msg_type = 0x11 as u8;
+                let protocol_version = 0x00 as u8;
+                let mut ip_addr = match ip_addr {
+                    IpAddr::V4(v4) => v4.octets().to_vec(),
+                    IpAddr::V6(v6) => v6.octets().to_vec(),
+                };
+                let port = port.to_be_bytes();
+                let payload_length = (ip_addr.len() + port.len()) as u64;
+
+                let mut raw: Vec<u8> = vec![msg_type, protocol_version];
+                raw.extend_from_slice(&payload_length.to_be_bytes());
+                raw.append(&mut ip_addr);
+                raw.extend_from_slice(&port);
+                raw
+            }
+            Self::Pong(ip_addr, port) => {
+                let msg_type = 0x12 as u8;
+                let protocol_version = 0x00 as u8;
+                let mut ip_addr = match ip_addr {
+                    IpAddr::V4(v4) => v4.octets().to_vec(),
+                    IpAddr::V6(v6) => v6.octets().to_vec(),
+                };
+                let port = port.to_be_bytes();
+                let payload_length = (ip_addr.len() + port.len()) as u64;
+
+                let mut raw: Vec<u8> = vec![msg_type, protocol_version];
+                raw.extend_from_slice(&payload_length.to_be_bytes());
+                raw.append(&mut ip_addr);
+                raw.extend_from_slice(&port);
+                raw
+            }
+            // Internal Msg
+            Self::RemoveUnresponsivePeer(_pid) => {
+                let raw = Vec::new();
+                raw
+            }
         }
     }
 
@@ -206,7 +246,7 @@ impl NetworkHandleMessage {
     // remains: Data
     pub fn decode(
         buf: &[u8],
-        addr: SocketAddr,
+        _addr: SocketAddr,
     ) -> Result<(Option<NetworkHandleMessage>, usize), DecodeError> {
         if buf.len() < 3 {
             return Ok((None, buf.len()));
@@ -231,17 +271,14 @@ impl NetworkHandleMessage {
         let mut buf_used = 10;
         match msg_type {
             // PeerConnectionTest
-            0x00 => Ok((
-                Some(NetworkHandleMessage::PeerConnectionTest { peer: addr }),
-                buf_used,
-            )),
+            0x01 => Ok((Some(NetworkHandleMessage::PeerConnectionTest), buf_used)),
             // NewTransaction
-            0x01 => {
+            0x02 => {
                 let (signed, _) = SignedTransaction::decode(&data.to_vec())?;
                 Ok((Some(NetworkHandleMessage::NewTransaction(signed)), buf_used))
             }
             // NewPayload
-            0x02 => {
+            0x03 => {
                 let (block, used) = Block::decode(&data.to_vec())?;
                 buf_used += used;
                 Ok((Some(NetworkHandleMessage::NewPayload(block)), buf_used))
@@ -312,7 +349,7 @@ impl NetworkHandleMessage {
                     buf_used,
                 ))
             }
-            0x12 => {
+            0x09 => {
                 if data.len() < 6 {
                     return Err(DecodeError::TooShortRawData(buf.to_vec()));
                 }
@@ -329,7 +366,7 @@ impl NetworkHandleMessage {
                     buf_used,
                 ))
             }
-            0x13 => {
+            0x10 => {
                 let mut arr = [0u8; 8];
                 arr.copy_from_slice(&data[0..8]);
                 let len = u64::from_be_bytes(arr);
@@ -348,6 +385,34 @@ impl NetworkHandleMessage {
                     buf_used,
                 ))
             }
+            0x11 => {
+                if data.len() < 6 {
+                    return Err(DecodeError::TooShortRawData(buf.to_vec()));
+                }
+                let mut arr = [0u8; 4];
+                arr.copy_from_slice(&data[0..4]);
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let mut arr2 = [0u8; 2];
+                arr2.copy_from_slice(&data[4..6]);
+                let port = u16::from_be_bytes(arr2.try_into().unwrap());
+                buf_used += 6;
+                Ok((Some(NetworkHandleMessage::Ping(ip_addr, port)), buf_used))
+            }
+            0x12 => {
+                if data.len() < 6 {
+                    return Err(DecodeError::TooShortRawData(buf.to_vec()));
+                }
+                let mut arr = [0u8; 4];
+                arr.copy_from_slice(&data[0..4]);
+                let ip_addr =
+                    IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(arr.try_into().unwrap())));
+                let mut arr2 = [0u8; 2];
+                arr2.copy_from_slice(&data[4..6]);
+                let port = u16::from_be_bytes(arr2.try_into().unwrap());
+                buf_used += 6;
+                Ok((Some(NetworkHandleMessage::Pong(ip_addr, port)), buf_used))
+            }
             _ => Ok((None, buf.len())),
         }
     }
@@ -358,14 +423,8 @@ use std::fmt;
 impl fmt::Display for NetworkHandleMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkHandleMessage::PeerConnectionTest { peer } => {
-                write!(
-                    f,
-                    "{} {} {}",
-                    "[Network]",
-                    "PeerConnectionTest",
-                    peer.to_string()
-                )
+            NetworkHandleMessage::PeerConnectionTest => {
+                write!(f, "{} {}", "[Network]", "PeerConnectionTest",)
             }
             NetworkHandleMessage::NewTransaction(tx) => {
                 write!(
@@ -448,6 +507,15 @@ impl fmt::Display for NetworkHandleMessage {
                     id.to_string().red()
                 )
             }
+            NetworkHandleMessage::RemoveUnresponsivePeer(id) => {
+                write!(
+                    f,
+                    "{} {} id: {}",
+                    "[Network]",
+                    "RemoveUnresponsivePeer",
+                    id.to_string().red()
+                )
+            }
             NetworkHandleMessage::BroadcastTransaction(tx) => {
                 write!(
                     f,
@@ -474,6 +542,12 @@ impl fmt::Display for NetworkHandleMessage {
                     num.to_string(),
                     hashes.len().to_string()
                 )
+            }
+            NetworkHandleMessage::Ping(addr, port) => {
+                write!(f, "{} {} {}:{}", "[Network]", "Ping from", addr, port)
+            }
+            NetworkHandleMessage::Pong(addr, port) => {
+                write!(f, "{} {} {}:{}", "[Network]", "Pong from", addr, port)
             }
         }
     }

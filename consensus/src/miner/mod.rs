@@ -11,7 +11,7 @@ use primitives::{
 };
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::miner::handle::MinerHandle;
 
@@ -48,7 +48,7 @@ impl Miner {
             let mut token: Option<tokio_util::sync::CancellationToken> = None;
             loop {
                 if let Some(msg) = miner_rx.recv().await {
-                    info!("Miner received message. {}", msg);
+                    debug!("Miner received message. {}", msg);
                     match msg {
                         MinerHandleMessage::NewPayload(payload_header) => {
                             // spawn payload mining task

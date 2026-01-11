@@ -8,7 +8,7 @@ use primitives::{
     types::{Account, Address},
 };
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{error::ProviderError, executor::Executor, state::ExecutableState};
 
@@ -90,6 +90,7 @@ impl<DB: DatabaseTrait + Clone> ProviderFactory<DB> {
         };
 
         // update results
+        info!("Imported New Block. {}", &block);
         let _ = self.db.update(new_account_state, new_field_state, block);
         Ok(())
     }

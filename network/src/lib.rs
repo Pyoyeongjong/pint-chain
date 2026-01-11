@@ -9,9 +9,10 @@ use rand::{rng, seq::IndexedRandom};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    time::Duration,
 };
 use tokio_stream::{StreamExt, wrappers::UnboundedReceiverStream};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use transaction_pool::{Pool, error::PoolErrorKind, identifier::TransactionOrigin};
 
 use crate::{
@@ -31,6 +32,7 @@ pub struct NetworkManager<DB: DatabaseTrait> {
     network_handle: NetworkHandle,
     from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
     pool: Pool<DB>,
+    // Main Loop 이외에
     peers: PeerList,
     consensus: Box<dyn Handle<Msg = ConsensusHandleMessage>>,
     config: NetworkConfig,
@@ -41,6 +43,16 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
         tokio::spawn(async move {
             info!("Network channel starts.");
             let mut this: NetworkManager<DB> = self;
+
+            // Peer Connection Task loop
+            let handle_cloned = this.network_handle.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                    handle_cloned.send(NetworkHandleMessage::PeerConnectionTest);
+                    info!("Start PeerConnectionTest");
+                }
+            });
 
             loop {
                 tokio::select! {
@@ -81,18 +93,22 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                     // NetworkHandle Message
                     Some(msg) = this.from_handle_rx.next() => {
-                        info!("Received message: {}", msg);
+                        debug!("Received message: {}", msg);
                         match msg {
-                            NetworkHandleMessage::PeerConnectionTest{peer: addr} => {
-                                let peer = match this.peers.find_peer(addr) {
-                                    Some(peer) => peer,
-                                    None => {
-                                        error!(addr = ?addr, "Can't find this peer.");
-                                        continue;
-                                    }
-                                };
-                                // TODO: 뭔가 이상하다
-                                peer.send(NetworkHandleMessage::PeerConnectionTest { peer: addr });
+                            NetworkHandleMessage::PeerConnectionTest => {
+                                let mut peers = this.peers.inner().write();
+
+                                for peer in peers.iter_mut() {
+                                    if peer.is_not_alive() { continue }; // PeerConnectionTest is ongoing already
+                                    peer.set_alive_false();
+                                    peer.send(NetworkHandleMessage::Ping(this.config.address, this.config.port));
+                                    let peer_id = peer.id();
+                                    let handle_cloned = this.network_handle.clone();
+                                    tokio::task::spawn(async move {
+                                        tokio::time::sleep(Duration::from_secs(10)).await;
+                                        handle_cloned.send(NetworkHandleMessage::RemoveUnresponsivePeer(peer_id));
+                                    });
+                                }
                             }
                             NetworkHandleMessage::NewTransaction(signed) => {
                                 let origin = TransactionOrigin::External;
@@ -202,13 +218,10 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                             NetworkHandleMessage::Hello(pid, address, port) => {
                                 let socket_addr = SocketAddr::from((address, port));
-                                let binding = this.peers.inner().read();
-                                let peer = match binding.iter().find(|peer| {
-                                    *peer.addr() == socket_addr
-                                }) {
+                                let peer = match this.peers.find_peer_by_addr(socket_addr) {
                                     Some(peer) => peer,
                                     None => {
-                                        warn!("Hello: Can't find peer");
+                                        warn!("Hello: Can't find peer while Hello");
                                         continue;
                                     }
                                 };
@@ -222,6 +235,19 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
 
                             NetworkHandleMessage::RemovePeer(pid) => {
                                 this.peers.remove_peer_by_id(pid);
+                            }
+
+                            NetworkHandleMessage::RemoveUnresponsivePeer(pid) => {
+                                let peer = match this.peers.find_peer_by_id(pid) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        warn!("Hello: Can't find peer while RemoveUnresponsivePeer");
+                                        continue;
+                                    }
+                                };
+                                if peer.is_not_alive() {
+                                    this.peers.remove_peer_by_id(pid);
+                                }
                             }
 
                             NetworkHandleMessage::BroadcastTransaction(signed) => {
@@ -311,6 +337,29 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                     this.network_handle.send(NetworkHandleMessage::RequestData(1));
                                 }
                             }
+                            NetworkHandleMessage::Ping (ip_addr, port) => {
+                                let socket_addr = SocketAddr::from((ip_addr, port));
+                                let peer = match this.peers.find_peer_by_addr(socket_addr) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        error!(addr = ?socket_addr, "Can't find this peer while Ping");
+                                        continue;
+                                    }
+                                };
+
+                                peer.send(NetworkHandleMessage::Pong(this.config.address, this.config.port));
+                            }
+                            NetworkHandleMessage::Pong(ip_addr, port)=> {
+                                let socket_addr = SocketAddr::from((ip_addr, port));
+                                let mut peer = match this.peers.find_peer_by_addr(socket_addr) {
+                                    Some(peer) => peer,
+                                    None => {
+                                        error!(addr = ?socket_addr, "Can't find this peer while Pong");
+                                        continue;
+                                    }
+                                };
+                                peer.set_alive_true();
+                            }
                         }
                     }
                 }
@@ -340,7 +389,6 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             continue;
                         }
                         Ok(n) => {
-                            info!("n={n}, raw={:02x?}", &buf[..n]);
                             if n < 2 {
                                 continue;
                             };

@@ -239,6 +239,36 @@ impl fmt::Display for Payload {
     }
 }
 
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Block {{")?;
+        writeln!(f, "  Header:")?;
+        writeln!(f, "    Previous Hash: {:?}", self.header.previous_hash)?;
+        writeln!(f, "    Tx Root      : {:?}", self.header.transaction_root)?;
+        writeln!(f, "    State Root   : {:?}", self.header.state_root)?;
+        writeln!(f, "    Proposer     : {:?}", self.header.proposer)?;
+        writeln!(f, "    Difficulty   : {}", self.header.difficulty)?;
+        writeln!(f, "    Timestamp    : {}", self.header.timestamp)?;
+        writeln!(f, "    Height       : {}", self.header.height)?;
+        writeln!(f, "    Total Fee    : {}", self.header.total_fee)?;
+        writeln!(f, "  Body ({} txs):", self.body.len())?;
+
+        for (i, tx) in self.body.iter().enumerate() {
+            writeln!(
+                f,
+                "    {}. hash: {:?}, to: {:?}, value: {}, fee: {}",
+                i + 1,
+                tx.hash,
+                tx.tx.to,
+                tx.tx.value,
+                tx.tx.fee
+            )?;
+        }
+
+        write!(f, "}}")
+    }
+}
+
 pub struct BlockValidationResult {
     pub success: bool,
     pub error: Option<BlockValidatioError>,

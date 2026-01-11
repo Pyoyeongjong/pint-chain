@@ -9,7 +9,7 @@ use primitives::{
 };
 use provider::{DatabaseTrait, ProviderFactory};
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use transaction_pool::Pool;
 
 use crate::{handle::ConsensusHandle, importer::BlockImporter, miner::handle::MinerHandle};
@@ -80,30 +80,30 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
             if latest_payload.is_none() {
                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
             }
-            let mut latest_payload: Option<Payload> = None;
+            let mut mining_payload: Option<Payload> = None;
 
             loop {
                 tokio::select! {
                     Some(msg) = miner_events.recv() => {
-                        info!(
+                        debug!(
                             "Received message from Miner: {}", msg
                         );
                         match msg {
                             MinerResultMessage::MiningSuccess(header) => {
                                 info!{
-                                    "Accepted mining result. Header: {:?}", header
+                                    "Accepted mining result. Header_Timestamp: {}", header.timestamp
                                 };
 
                                 // check this result matches current payload
-                                let new_latest_payload = latest_payload.clone();
+                                let payload = match mining_payload.clone() {
+                                    Some(payload) => payload,
+                                    None => continue
+                                };
 
-                                if new_latest_payload.is_none() {
-                                    continue;
-                                }
-
-                                let payload: Payload = new_latest_payload.unwrap();
                                 if header.timestamp != payload.header.timestamp {
                                     error!(
+                                        header_timestamp = header.timestamp,
+                                        payload_hearder_timestamp = payload.header.timestamp,
                                         "Latest_payload and mining results is different."
                                     );
                                     continue;
@@ -120,19 +120,20 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 info!(
                                     "Mining task halted"
                                 );
+                                mining_payload = None;
                                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
                         }
                     }
 
                     Some(msg) = builder_events.recv() => {
-                        info!(
-                            "Recived message from PayloadBuilder: {}", msg
+                        debug!(
+                            "Received message from PayloadBuilder: {}", msg
                         );
                         match msg {
                             PayloadBuilderResultMessage::Payload(payload) => {
                                 info!(
-                                    "Accepted payload"
+                                    "Accepted payload. Payload: {}", payload.header.timestamp
                                 );
                                 if payload.body.len() == 0 {
                                     info!(
@@ -141,7 +142,7 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 } else {
                                     let miner_handle_cloned = miner_handle.clone();
                                     miner_handle_cloned.send(MinerHandleMessage::NewPayload(payload.header.clone()));
-                                    latest_payload = Some(payload);
+                                    mining_payload = Some(payload);
                                 }
 
                             }
@@ -154,7 +155,7 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                     }
 
                     Some(msg) = rx.recv() => {
-                        info!(
+                        debug!(
                             "Received message: {}", msg
                         );
                         match msg {
@@ -197,7 +198,7 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 }
                                 pool.remove_block_transactions(&block);
                                 pool.reorganize_pool();
-                                latest_payload = None;
+                                mining_payload = None;
                                 miner_handle.send(MinerHandleMessage::HaltMining);
                                 network.send(NetworkHandleMessage::BroadcastBlock(block));
                             }

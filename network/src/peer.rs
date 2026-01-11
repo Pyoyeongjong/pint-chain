@@ -8,7 +8,7 @@ use tokio::{
     select,
     sync::mpsc::{self, UnboundedSender},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::{NetworkHandle, NetworkHandleMessage};
 
@@ -17,11 +17,17 @@ pub struct Peer {
     id: u64,
     addr: SocketAddr,
     tx: UnboundedSender<NetworkHandleMessage>,
+    alive: bool,
 }
 
 impl Peer {
     pub fn new(id: u64, addr: SocketAddr, tx: UnboundedSender<NetworkHandleMessage>) -> Self {
-        Self { id, addr, tx }
+        Self {
+            id,
+            addr,
+            tx,
+            alive: true,
+        }
     }
 
     pub fn send(&self, msg: NetworkHandleMessage) {
@@ -45,9 +51,21 @@ impl Peer {
     pub fn update_addr(&mut self, addr: SocketAddr) {
         self.addr = addr;
     }
+
+    pub fn set_alive_false(&mut self) {
+        self.alive = false;
+    }
+
+    pub fn set_alive_true(&mut self) {
+        self.alive = false;
+    }
+
+    pub fn is_not_alive(&self) -> bool {
+        !self.alive
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PeerList {
     pub submission_id: u64,
     pub peers: Arc<RwLock<Vec<Peer>>>,
@@ -69,10 +87,20 @@ impl PeerList {
         self.peers.read().len()
     }
 
-    pub fn find_peer(&self, addr: SocketAddr) -> Option<Peer> {
+    pub fn find_peer_by_addr(&self, addr: SocketAddr) -> Option<Peer> {
         let peers = self.peers.read();
         for peer in peers.iter() {
             if peer.addr == addr {
+                return Some(peer.clone());
+            }
+        }
+        None
+    }
+
+    pub fn find_peer_by_id(&self, id: u64) -> Option<Peer> {
+        let peers = self.peers.read();
+        for peer in peers.iter() {
+            if peer.id() == id {
                 return Some(peer.clone());
             }
         }
@@ -120,7 +148,7 @@ impl PeerList {
                         break;
                     }
                     Ok(n) => {
-                        info!("encoded {} data incomed", n);
+                        debug!("encoded {} data incomed", n);
                         let mut off: usize = 0;
 
                         while off < n {
@@ -131,7 +159,8 @@ impl PeerList {
                                         off += used;
                                     }
                                     None => {
-                                        warn!( addr = ?addr, "Invalid Request from Peer");
+                                        // It often occurs.. so it is not warning maybe..
+                                        // warn!( addr = ?addr, "Invalid Request from Peer");
                                         off += used;
                                     }
                                 },
