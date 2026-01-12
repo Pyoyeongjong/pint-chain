@@ -499,22 +499,10 @@ impl fmt::Display for NetworkHandleMessage {
                 )
             }
             NetworkHandleMessage::RemovePeer(id) => {
-                write!(
-                    f,
-                    "{} {} id: {}",
-                    "[Network]",
-                    "RemovePeer",
-                    id.to_string().red()
-                )
+                write!(f, "{} {} id: {}", "[Network]", "RemovePeer", id)
             }
             NetworkHandleMessage::RemoveUnresponsivePeer(id) => {
-                write!(
-                    f,
-                    "{} {} id: {}",
-                    "[Network]",
-                    "RemoveUnresponsivePeer",
-                    id.to_string().red()
-                )
+                write!(f, "{} {} id: {}", "[Network]", "RemoveUnresponsivePeer", id)
             }
             NetworkHandleMessage::BroadcastTransaction(tx) => {
                 write!(

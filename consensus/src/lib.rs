@@ -117,9 +117,9 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                 consensus_handle.send(ConsensusHandleMessage::ImportBlock(block));
                             }
                             MinerResultMessage::MiningHalted => {
-                                info!(
-                                    "Mining task halted"
-                                );
+                                if mining_payload.is_some() {
+                                    info!("Mining task halted");
+                                }
                                 mining_payload = None;
                                 builder_handle.send(PayloadBuilderHandleMessage::BuildPayload);
                             }
@@ -168,8 +168,6 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                                 error = ?e,
                                                 "Failed to import new block due to block height. Try to update new datas."
                                             );
-                                            // TODO: 이거 왜있지?
-                                            // network.send(NetworkHandleMessage::RequestData);
                                             continue;
                                         }
                                         BlockImportError::NotChainedBlock => {
@@ -177,8 +175,6 @@ impl<DB: DatabaseTrait> ConsensusEngine<DB> {
                                                 error = ?e,
                                                 "Failed to import new block due to block hash. Try to update new datas."
                                             );
-                                            // TODO: 이거 왜있지?
-                                            // network.send(NetworkHandleMessage::RequestData);
                                             continue;
                                         }
                                         BlockImportError::AlreadyImportedBlock => {

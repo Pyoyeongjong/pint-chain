@@ -1926,6 +1926,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pint-utils"
+version = "0.1.0"
+dependencies = [
+ "e2e-test",
+ "hex",
+ "primitives",
+ "tokio",
+]
+
+[[package]]
 name = "pkcs8"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

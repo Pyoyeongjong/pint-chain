@@ -57,7 +57,7 @@ impl Peer {
     }
 
     pub fn set_alive_true(&mut self) {
-        self.alive = false;
+        self.alive = true;
     }
 
     pub fn is_not_alive(&self) -> bool {
@@ -95,6 +95,15 @@ impl PeerList {
             }
         }
         None
+    }
+
+    pub fn set_alive_true(&mut self, addr: SocketAddr) {
+        let mut peers = self.peers.write();
+        for peer in peers.iter_mut() {
+            if peer.addr == addr {
+                peer.set_alive_true();
+            }
+        }
     }
 
     pub fn find_peer_by_id(&self, id: u64) -> Option<Peer> {

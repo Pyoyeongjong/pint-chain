@@ -241,12 +241,16 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                                 let peer = match this.peers.find_peer_by_id(pid) {
                                     Some(peer) => peer,
                                     None => {
-                                        warn!("Hello: Can't find peer while RemoveUnresponsivePeer");
+                                        warn!("Can't find peer while RemoveUnresponsivePeer");
                                         continue;
                                     }
                                 };
                                 if peer.is_not_alive() {
+                                    debug!("This peer is not alive. Remove pid:{}", pid);
                                     this.peers.remove_peer_by_id(pid);
+                                }
+                                else {
+                                    debug!("This peer is alive. pid:{}", pid);
                                 }
                             }
 
@@ -351,14 +355,7 @@ impl<DB: DatabaseTrait + Sync + Send + 'static> NetworkManager<DB> {
                             }
                             NetworkHandleMessage::Pong(ip_addr, port)=> {
                                 let socket_addr = SocketAddr::from((ip_addr, port));
-                                let mut peer = match this.peers.find_peer_by_addr(socket_addr) {
-                                    Some(peer) => peer,
-                                    None => {
-                                        error!(addr = ?socket_addr, "Can't find this peer while Pong");
-                                        continue;
-                                    }
-                                };
-                                peer.set_alive_true();
+                                this.peers.set_alive_true(socket_addr);
                             }
                         }
                     }

@@ -39,10 +39,13 @@ pub fn init_txs<DB: DatabaseTrait>(node: &Node<DB>) {
 
     if let Err(_e) = node.pool.add_transaction(
         TransactionOrigin::External,
-        signed.into_recovered().unwrap(),
+        signed.clone().into_recovered().unwrap(),
     ) {
         error!("Tx3 add failed");
     }
 
     node.pool.print_pool();
+    node.handle_network(primitives::handle::NetworkHandleMessage::NewTransaction(
+        signed,
+    ));
 }
